@@ -1,0 +1,2222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flujo IA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./falabella.png" type="image/png" />
+
+  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --card2: #f1f3f5;
+      --text: #1f2933;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --greenFalabella: #8fca00;
+      --greenDark: #6fa800;
+      --red: #ef4444;
+      --orange: #fb923c;
+      --yellow: #facc15;
+      --lime: #a3e635;
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --shadow: 0 8px 24px rgba(0, 0, 0, .07);
+      --radius: 18px;
+    }
+
+    body.dark {
+      --bg: #060606;
+      --card: #111111;
+      --card2: #1b1b1b;
+      --text: #f5f5f5;
+      --muted: #a1a1aa;
+      --border: #2a2a2a;
+      --shadow: 0 8px 24px rgba(0, 0, 0, .35);
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Lato', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font-family: inherit;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 3px 18px rgba(0, 0, 0, .04);
+    }
+
+    .topbar-inner {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-box {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--greenFalabella), #c9f000);
+      color: white;
+      font-weight: 900;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(143, 202, 0, .25);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+
+    .brand small {
+      display: block;
+      color: var(--muted);
+      margin-top: 2px;
+      font-size: 12px;
+    }
+
+    .version {
+      display: inline-flex;
+      margin-left: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(143, 202, 0, .13);
+      color: var(--greenDark);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .user-select {
+      min-width: 190px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 13px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    .theme-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .main {
+      max-width: 1450px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+
+    .lock-message {
+      background: var(--card);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      text-align: center;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .btn:disabled,
+    .tab:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--greenFalabella);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--greenDark);
+    }
+
+    .btn-soft {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-blue {
+      background: var(--blue);
+      color: white;
+    }
+
+    .btn-red {
+      background: var(--red);
+      color: white;
+    }
+
+    .btn-small {
+      padding: 8px 10px;
+      font-size: 12px;
+      border-radius: 10px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .tab {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-weight: 900;
+    }
+
+    .tab.active {
+      background: var(--greenFalabella);
+      color: white;
+      border-color: var(--greenFalabella);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat small {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 25px;
+      margin-top: 5px;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .tab-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .manual-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+
+    .manual-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .manual-title h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .manual-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .manual-grid .wide {
+      grid-column: span 2;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+    }
+
+    .field textarea {
+      min-height: 78px;
+      resize: vertical;
+    }
+
+    .manual-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .list-panel,
+    .detail-panel,
+    .master-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-title {
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sku-list {
+      max-height: calc(100vh - 285px);
+      overflow-y: auto;
+    }
+
+    .sku-item {
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: grid;
+      gap: 7px;
+    }
+
+    .sku-item:hover,
+    .sku-item.active {
+      background: rgba(143, 202, 0, .08);
+    }
+
+    .sku-item-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sku-code {
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .sku-brand {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .pill-priority-1 { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
+    .pill-priority-2 { background: rgba(251, 146, 60, .14); color: var(--orange); border-color: rgba(251, 146, 60, .25); }
+    .pill-priority-3 { background: rgba(250, 204, 21, .16); color: #ca8a04; border-color: rgba(250, 204, 21, .35); }
+    .pill-priority-4 { background: rgba(163, 230, 53, .16); color: #65a30d; border-color: rgba(163, 230, 53, .28); }
+    .pill-priority-5 { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
+
+    .status { background: var(--card2); color: var(--muted); border-color: var(--border); }
+    .status-trabajo { background: rgba(59, 130, 246, .13); color: var(--blue); border-color: rgba(59, 130, 246, .25); }
+    .status-revision { background: rgba(250, 204, 21, .17); color: #ca8a04; border-color: rgba(250, 204, 21, .32); }
+    .status-aprobado { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
+    .status-rechazado { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
+    .status-descargado { background: rgba(34, 197, 94, .22); color: var(--green); border-color: rgba(34, 197, 94, .36); }
+
+    .detail-content {
+      padding: 18px;
+    }
+
+    .empty {
+      padding: 30px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .detail-header h2 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .detail-header small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .info-box {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .info-box small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .info-box span {
+      white-space: pre-wrap;
+      line-height: 1.35;
+      font-size: 14px;
+    }
+
+    .prompt-box {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      line-height: 1.5;
+      font-size: 14px;
+      white-space: pre-wrap;
+      margin-bottom: 14px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .upload-box {
+      border: 2px dashed var(--border);
+      background: var(--card2);
+      border-radius: var(--radius);
+      padding: 34px 20px;
+      text-align: center;
+      cursor: pointer;
+      display: block;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+    }
+
+    .upload-box:hover,
+    .upload-box.drag-over {
+      border-color: var(--greenFalabella);
+      background: rgba(143, 202, 0, .08);
+      transform: translateY(-1px);
+    }
+
+    .upload-box strong {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 6px;
+    }
+
+    .upload-box small {
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .preview {
+      margin-top: 14px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      min-height: 260px;
+      color: var(--muted);
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+
+    .preview-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .preview-item img {
+      width: 100%;
+      height: 160px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: var(--card2);
+    }
+
+    .preview-name {
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-word;
+      line-height: 1.25;
+    }
+
+    .review-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: 1fr 430px;
+      gap: 16px;
+    }
+
+    .review-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .review-top input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--greenFalabella);
+    }
+
+    .bulk-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bulk-bar input {
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+    }
+
+    .input-file {
+      display: none;
+    }
+
+    .master-table-wrap {
+      width: 100%;
+      overflow: auto;
+    }
+
+    .master-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1050px;
+    }
+
+    .master-table th,
+    .master-table td {
+      padding: 12px 11px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    .master-table th {
+      background: var(--card2);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .master-table tr:hover td {
+      background: rgba(143, 202, 0, .05);
+    }
+
+    .master-sku {
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .master-muted {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 50;
+      background: #111827;
+      color: white;
+      padding: 13px 15px;
+      border-radius: 14px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, .25);
+      font-weight: 900;
+      display: none;
+      max-width: 360px;
+    }
+
+    body.dark .toast {
+      background: white;
+      color: #111;
+    }
+
+    @media (max-width: 1000px) {
+      .topbar-inner { align-items: flex-start; flex-direction: column; }
+      .top-right { width: 100%; justify-content: space-between; }
+      .layout, .review-card { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .bulk-bar { grid-template-columns: 1fr; }
+      .manual-grid { grid-template-columns: 1fr; }
+      .manual-grid .wide { grid-column: span 1; }
+      .info-grid { grid-template-columns: 1fr; }
+      .sku-list { max-height: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo-box">IA</div>
+        <div>
+          <h1>Flujo IA <span class="version">V0.1.5</span></h1>
+          <small>Falabella Chile · Flujo sincronizado con Firebase</small>
+        </div>
+      </div>
+
+      <div class="top-right">
+        <select id="currentUser" class="user-select" onchange="handleUserChange()">
+          <option value="">Seleccionar usuario</option>
+          <option>Pablo</option>
+          <option>Mylena</option>
+          <option>Fernanda</option>
+          <option>Fernando</option>
+          <option>Marcos</option>
+          <option>Micaela</option>
+          <option>Kathe</option>
+          <option>Cesar</option>
+          <option>Michelle</option>
+          <option>Sandra</option>
+          <option>Rossana</option>
+          <option>Sebastian</option>
+        </select>
+
+        <button id="themeBtn" class="theme-btn" onclick="toggleTheme()" title="Modo oscuro">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div id="lockMessage" class="lock-message">
+      Configura Firebase y selecciona tu usuario para comenzar.
+    </div>
+
+    <section id="stats" class="stats"></section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="work" onclick="setTab('work')">SKU a trabajar</button>
+      <button class="tab" data-tab="upload" onclick="setTab('upload')">Subir trabajado</button>
+      <button class="tab" data-tab="review" onclick="setTab('review')">Revisión</button>
+      <button class="tab" data-tab="master" onclick="setTab('master')">Master</button>
+    </nav>
+
+    <section id="view-work" class="view active">
+      <div class="tab-actions">
+        <button id="manualBtn" class="btn btn-soft" onclick="toggleManualPanel()" disabled>Agregar manual</button>
+        <button id="loadExcelBtn" class="btn btn-primary" onclick="document.getElementById('excelInput').click()" disabled>Cargar Excel</button>
+        <button id="templateBtn" class="btn btn-soft" onclick="downloadTemplate()" disabled>Descargar plantilla</button>
+        <input id="excelInput" class="input-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)" />
+      </div>
+
+      <section id="manualPanel" class="manual-panel hidden">
+        <div class="manual-title">
+          <h2>Agregar SKU manual</h2>
+          <button class="btn btn-soft btn-small" onclick="toggleManualPanel()">Cerrar</button>
+        </div>
+
+        <div class="manual-grid">
+          <div class="field">
+            <label>SKU *</label>
+            <input id="manualSku" placeholder="Ej: 123456789" />
+          </div>
+
+          <div class="field">
+            <label>Marca *</label>
+            <input id="manualMarca" placeholder="Ej: Basement" />
+          </div>
+
+          <div class="field">
+            <label>Prioridad *</label>
+            <select id="manualPrioridad">
+              <option value="1">1 · Urgente</option>
+              <option value="2">2 · Alta</option>
+              <option value="3">3 · Media</option>
+              <option value="4">4 · Baja</option>
+              <option value="5" selected>5 · Normal</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Medidas</label>
+            <input id="manualMedidas" placeholder="Ej: 120 x 80 x 40 cm" />
+          </div>
+
+          <div class="field wide">
+            <label>Descripción / Comentario</label>
+            <textarea id="manualComentario" placeholder="Ej: Usar ambientación limpia, moderna y cálida."></textarea>
+          </div>
+        </div>
+
+        <div class="manual-actions">
+          <button class="btn btn-soft" onclick="clearManualForm()">Limpiar</button>
+          <button class="btn btn-primary" onclick="addManualSku()">Agregar SKU</button>
+        </div>
+      </section>
+
+      <div class="layout">
+        <div class="list-panel">
+          <div class="panel-title">
+            <span>Pendientes / Rechazados</span>
+            <span id="workCount" class="pill status"></span>
+          </div>
+          <div id="workList" class="sku-list"></div>
+        </div>
+
+        <div class="detail-panel">
+          <div class="panel-title">Detalle del SKU</div>
+          <div id="workDetail" class="detail-content"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-upload" class="view">
+      <div class="layout">
+        <div class="list-panel">
+          <div class="panel-title">
+            <span>Mis SKUs tomados</span>
+            <span id="uploadCount" class="pill status"></span>
+          </div>
+          <div id="uploadList" class="sku-list"></div>
+        </div>
+
+        <div class="detail-panel">
+          <div class="panel-title">Subir imagen trabajada</div>
+          <div id="uploadDetail" class="detail-content"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-review" class="view">
+      <div class="bulk-bar">
+        <input id="bulkReason" placeholder="Motivo para rechazo múltiple" />
+        <button class="btn btn-primary" onclick="approveSelected()">Aprobar y descargar seleccionados</button>
+        <button class="btn btn-red" onclick="rejectSelected()">Rechazar seleccionados</button>
+      </div>
+
+      <div id="reviewList"></div>
+    </section>
+
+    <section id="view-master" class="view">
+      <div class="master-panel">
+        <div class="panel-title">
+          <span>Master de registro</span>
+          <span id="masterCount" class="pill status"></span>
+        </div>
+
+        <div id="masterTable"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      setDoc,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      getStorage,
+      ref as storageRef,
+      uploadBytes,
+      getBlob,
+      deleteObject
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
+    const APP_VERSION = "V0.1.5";
+    const BUSINESS_UNIT = "falabella";
+    const PAIS = "CL";
+    const COLLECTION_NAME = "flujo_ia_skus";
+    const STORAGE_ROOT = "flujo-ia/imagenes";
+
+const firebaseConfig = {
+      apiKey: "AIzaSyD4Uju0DEyYGgpAeTQi-xSbWd10wy7cfJc",
+      authDomain: "flujo-ia.firebaseapp.com",
+      projectId: "flujo-ia",
+      storageBucket: "flujo-ia.firebasestorage.app",
+      messagingSenderId: "500202381796",
+      appId: "1:500202381796:web:20d93a25cf0e5d1e9627f1"
+    };
+
+    const STATUS = {
+      PENDIENTE: "Pendiente",
+      TRABAJO: "En trabajo",
+      REVISION: "En revisión",
+      APROBADO: "Aprobado",
+      RECHAZADO: "Rechazado",
+      DESCARGADO: "Descargado"
+    };
+
+    let firebaseReady = false;
+    let db = null;
+    let storage = null;
+    let records = [];
+    let activeTab = "work";
+    let selectedWorkId = "";
+    let selectedUploadId = "";
+    let unsubscribeRecords = null;
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      loadTheme();
+      initFirebase();
+      renderEmptyBase();
+      lockByUser();
+    });
+
+    function initFirebase() {
+      const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("PEGA_AQUI");
+
+      if (!configured) {
+        firebaseReady = false;
+        document.getElementById("lockMessage").innerHTML = `
+          Falta configurar Firebase en el código.<br>
+          Reemplaza el bloque <strong>firebaseConfig</strong> con los datos de tu proyecto Firebase.
+        `;
+        return;
+      }
+
+      try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        storage = getStorage(app);
+        firebaseReady = true;
+        listenRecords();
+      } catch (error) {
+        console.error(error);
+        firebaseReady = false;
+        document.getElementById("lockMessage").textContent = "No se pudo iniciar Firebase. Revisa firebaseConfig.";
+      }
+    }
+
+    function listenRecords() {
+      if (!firebaseReady) return;
+      if (unsubscribeRecords) unsubscribeRecords();
+
+      unsubscribeRecords = onSnapshot(
+        collection(db, COLLECTION_NAME),
+        snapshot => {
+          records = snapshot.docs.map(item => {
+            const data = item.data();
+            return migrateRecord({ ...data, id: item.id });
+          });
+
+          refresh();
+        },
+        error => {
+          console.error(error);
+          alert("No se pudo leer la base de datos de Firebase. Revisa reglas/permisos de Firestore.");
+        }
+      );
+    }
+
+    function migrateRecord(record) {
+      if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+      if (!record.version) record.version = 1;
+      if (!record.prompt) record.prompt = buildPrompt(record);
+      if (!record.estado) record.estado = STATUS.PENDIENTE;
+      if (!record.lastImageNames) record.lastImageNames = "";
+      return record;
+    }
+
+    async function saveRecord(record) {
+      if (!firebaseReady) {
+        alert("Firebase no está configurado.");
+        return;
+      }
+
+      const clean = JSON.parse(JSON.stringify(record));
+      await setDoc(doc(db, COLLECTION_NAME, clean.id), clean, { merge: true });
+    }
+
+    function currentUser() {
+      return document.getElementById("currentUser").value.trim();
+    }
+
+    function requireUser() {
+      if (!firebaseReady) {
+        alert("Primero configura Firebase en el código.");
+        return false;
+      }
+
+      if (!currentUser()) {
+        alert("Primero selecciona tu usuario.");
+        return false;
+      }
+
+      return true;
+    }
+
+    async function handleUserChange() {
+      lockByUser();
+      await refresh();
+    }
+
+    function lockByUser() {
+      const enabled = Boolean(currentUser()) && firebaseReady;
+
+      ["loadExcelBtn", "manualBtn", "templateBtn"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+      });
+
+      document.getElementById("lockMessage").classList.toggle("hidden", enabled);
+
+      document.querySelectorAll(".tab").forEach(tab => {
+        tab.disabled = !enabled;
+      });
+    }
+
+    function endpointBySku(sku) {
+      return `https://sellercenter.falabella-marketplace.services/media-service/v1/reference/${encodeURIComponent(sku)}?businessUnit=${BUSINESS_UNIT}&country=${PAIS}`;
+    }
+
+    function buildPrompt(record) {
+      const marca = record.marca || "sin marca indicada";
+      const medidas = record.medidas || "sin medidas indicadas";
+      const comentario = record.comentario || "sin comentario adicional";
+
+      return `Ambientar este producto de forma realista, comercial y atractiva para ecommerce, manteniendo el producto como protagonista principal.
+
+SKU: ${record.sku}
+Marca: ${marca}
+Medidas: ${medidas}
+Comentario adicional: ${comentario}
+
+Instrucciones:
+- Mantener forma, color, proporciones, materialidad y detalles reales del producto.
+- No cambiar logos, textos, estampados, diseño, textura ni colores principales.
+- Crear una escena limpia, moderna y coherente con una imagen comercial de retail.
+- Usar iluminación natural o de estudio suave.
+- Evitar fondos saturados, elementos distractores o composición poco realista.
+- La ambientación debe ayudar a entender el uso del producto y mejorar su atractivo visual.
+- Resultado final profesional, ordenado y apto para publicación ecommerce.`;
+    }
+
+    function normalizeText(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function normalizeHeader(value) {
+      return normalizeText(value).replace(/[^a-z0-9]/g, "");
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function safeFileName(value) {
+      return String(value || "archivo")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .replace(/\s+/g, "_");
+    }
+
+    function uid() {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+      return "id_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+    }
+
+    function formatDate(value) {
+      if (!value) return "";
+
+      try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "";
+
+        const pad = n => String(n).padStart(2, "0");
+        return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch {
+        return "";
+      }
+    }
+
+    function dateStamp() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+    }
+
+    function toast(message) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.style.display = "block";
+
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => {
+        el.style.display = "none";
+      }, 2800);
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("dark");
+      const dark = document.body.classList.contains("dark");
+
+      localStorage.setItem("flujo_ia_theme", dark ? "dark" : "light");
+      document.getElementById("themeBtn").textContent = dark ? "☀️" : "🌙";
+    }
+
+    function loadTheme() {
+      const theme = localStorage.getItem("flujo_ia_theme");
+
+      if (theme === "dark") {
+        document.body.classList.add("dark");
+        document.getElementById("themeBtn").textContent = "☀️";
+      }
+    }
+
+    async function setTab(tab) {
+      if (!requireUser()) return;
+
+      activeTab = tab;
+
+      const manualPanel = document.getElementById("manualPanel");
+      if (manualPanel && tab !== "work") {
+        manualPanel.classList.add("hidden");
+      }
+
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === tab);
+      });
+
+      document.querySelectorAll(".view").forEach(view => {
+        view.classList.remove("active");
+      });
+
+      document.getElementById(`view-${tab}`).classList.add("active");
+      await refresh();
+    }
+
+    function getRecord(id) {
+      return records.find(r => r.id === id);
+    }
+
+    function priorityNumber(value) {
+      const raw = normalizeText(value);
+
+      if (!raw) return 5;
+
+      const colorMap = {
+        "rojo": 1,
+        "urgente": 1,
+        "naranjo": 2,
+        "naranja": 2,
+        "alta": 2,
+        "amarillo": 3,
+        "media": 3,
+        "verde limon": 4,
+        "verdelimon": 4,
+        "baja": 4,
+        "verde": 5,
+        "normal": 5
+      };
+
+      if (colorMap[raw]) return colorMap[raw];
+
+      const number = parseInt(raw, 10);
+      if (Number.isNaN(number)) return 5;
+
+      return Math.min(Math.max(number, 1), 5);
+    }
+
+    function isValidPriority(value) {
+      const raw = normalizeText(value);
+      if (!raw) return false;
+
+      const accepted = [
+        "1", "2", "3", "4", "5",
+        "rojo", "urgente",
+        "naranjo", "naranja", "alta",
+        "amarillo", "media",
+        "verde limon", "verdelimon", "baja",
+        "verde", "normal"
+      ];
+
+      return accepted.includes(raw);
+    }
+
+    function priorityLabel(priority) {
+      const p = priorityNumber(priority);
+      const labels = { 1: "Urgente", 2: "Alta", 3: "Media", 4: "Baja", 5: "Normal" };
+      return labels[p] || "Normal";
+    }
+
+    function priorityPill(priority) {
+      const p = priorityNumber(priority);
+      return `<span class="pill pill-priority-${p}">${p} · ${priorityLabel(p)}</span>`;
+    }
+
+    function statusPill(status) {
+      let cls = "status";
+
+      if (status === STATUS.TRABAJO) cls = "status-trabajo";
+      if (status === STATUS.REVISION) cls = "status-revision";
+      if (status === STATUS.APROBADO) cls = "status-aprobado";
+      if (status === STATUS.RECHAZADO) cls = "status-rechazado";
+      if (status === STATUS.DESCARGADO) cls = "status-descargado";
+
+      return `<span class="pill ${cls}">${escapeHtml(status)}</span>`;
+    }
+
+    function sortByPriority(list) {
+      return [...list].sort((a, b) => {
+        const pa = priorityNumber(a.prioridad);
+        const pb = priorityNumber(b.prioridad);
+        if (pa !== pb) return pa - pb;
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      });
+    }
+
+    function findColumn(row, candidates) {
+      const keys = Object.keys(row || {});
+
+      for (const candidate of candidates) {
+        const found = keys.find(key => {
+          const normalized = normalizeHeader(key);
+          return normalized === candidate || normalized.includes(candidate);
+        });
+
+        if (found) return found;
+      }
+
+      return null;
+    }
+
+    function createRecord({ sku, marca, medidas, comentario, prioridad }) {
+      const record = {
+        id: uid(),
+        sku: String(sku || "").trim(),
+        marca: String(marca || "").trim(),
+        medidas: String(medidas || "").trim(),
+        comentario: String(comentario || "").trim(),
+        prioridad: priorityNumber(prioridad),
+        estado: STATUS.PENDIENTE,
+        editor: "",
+        revisor: "",
+        motivoRechazo: "",
+        version: 1,
+        generatedImages: [],
+        generatedImageId: "",
+        generatedImageName: "",
+        lastImageNames: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        takenAt: "",
+        uploadedAt: "",
+        reviewedAt: "",
+        downloadedAt: ""
+      };
+
+      record.prompt = buildPrompt(record);
+      return record;
+    }
+
+    function skuAlreadyExists(sku) {
+      const key = normalizeText(sku);
+      return records.some(record => normalizeText(record.sku) === key);
+    }
+
+    function toggleManualPanel() {
+      if (!requireUser()) return;
+      document.getElementById("manualPanel").classList.toggle("hidden");
+    }
+
+    function clearManualForm() {
+      document.getElementById("manualSku").value = "";
+      document.getElementById("manualMarca").value = "";
+      document.getElementById("manualMedidas").value = "";
+      document.getElementById("manualComentario").value = "";
+      document.getElementById("manualPrioridad").value = "5";
+    }
+
+    async function addManualSku() {
+      if (!requireUser()) return;
+
+      const sku = document.getElementById("manualSku").value.trim();
+      const marca = document.getElementById("manualMarca").value.trim();
+      const medidas = document.getElementById("manualMedidas").value.trim();
+      const comentario = document.getElementById("manualComentario").value.trim();
+      const prioridad = document.getElementById("manualPrioridad").value;
+
+      if (!sku) {
+        alert("Debes ingresar un SKU.");
+        return;
+      }
+
+      if (!marca) {
+        alert("Debes ingresar una marca.");
+        return;
+      }
+
+      if (skuAlreadyExists(sku)) {
+        alert("Ese SKU ya existe en el master.");
+        return;
+      }
+
+      const record = createRecord({ sku, marca, medidas, comentario, prioridad });
+      records.push(record);
+      selectedWorkId = record.id;
+      await saveRecord(record);
+      clearManualForm();
+      await setTab("work");
+      await refresh();
+      toast("SKU agregado manualmente.");
+    }
+
+    function downloadTemplate() {
+      if (!requireUser()) return;
+
+      const rows = [
+        {
+          SKU: "123456789",
+          Marca: "Basement",
+          Medidas: "120 x 80 x 40 cm",
+          "Descripción/Comentario": "Ambientación limpia, moderna y cálida.",
+          Prioridad: 1
+        },
+        {
+          SKU: "987654321",
+          Marca: "La Martina",
+          Medidas: "",
+          "Descripción/Comentario": "",
+          Prioridad: 3
+        }
+      ];
+
+      const worksheet = XLSX.utils.json_to_sheet(rows, {
+        header: ["SKU", "Marca", "Medidas", "Descripción/Comentario", "Prioridad"]
+      });
+
+      worksheet["!cols"] = [
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 24 },
+        { wch: 46 },
+        { wch: 12 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Plantilla");
+      XLSX.writeFile(workbook, "plantilla_flujo_ia.xlsx");
+    }
+
+    async function handleExcelUpload(event) {
+      if (!requireUser()) return;
+
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        if (!rows.length) {
+          alert("El Excel está vacío.");
+          event.target.value = "";
+          return;
+        }
+
+        const first = rows[0];
+        const skuCol = findColumn(first, ["sku", "codigo", "codigoproducto", "idproducto"]);
+        const marcaCol = findColumn(first, ["marca", "brand", "proveedor"]);
+        const medidasCol = findColumn(first, ["medidas", "medida"]);
+        const comentarioCol = findColumn(first, ["descripcioncomentario", "comentario", "descripcion", "observacion", "observaciones", "detalle"]);
+        const prioridadCol = findColumn(first, ["prioridad", "urgencia", "nivel"]);
+
+        const missing = [];
+        if (!skuCol) missing.push("SKU");
+        if (!marcaCol) missing.push("Marca");
+        if (!prioridadCol) missing.push("Prioridad");
+
+        if (missing.length) {
+          alert(
+            "El Excel no tiene el formato correcto.\n\n" +
+            "Faltan estas columnas obligatorias:\n" +
+            missing.join(", ") +
+            "\n\nDescarga la plantilla desde la página para evitar errores."
+          );
+
+          event.target.value = "";
+          return;
+        }
+
+        let added = 0;
+        let duplicated = 0;
+        let incomplete = 0;
+        let correctedPriority = 0;
+        const writes = [];
+
+        rows.forEach(row => {
+          const sku = String(row[skuCol] || "").trim();
+          const marca = String(row[marcaCol] || "").trim();
+          const prioridadRaw = String(row[prioridadCol] || "").trim();
+
+          if (!sku || !marca) {
+            incomplete++;
+            return;
+          }
+
+          if (skuAlreadyExists(sku)) {
+            duplicated++;
+            return;
+          }
+
+          if (!isValidPriority(prioridadRaw)) correctedPriority++;
+
+          const record = createRecord({
+            sku,
+            marca,
+            medidas: medidasCol ? row[medidasCol] : "",
+            comentario: comentarioCol ? row[comentarioCol] : "",
+            prioridad: isValidPriority(prioridadRaw) ? prioridadRaw : 5
+          });
+
+          records.push(record);
+          writes.push(saveRecord(record));
+          added++;
+        });
+
+        await Promise.all(writes);
+
+        event.target.value = "";
+        selectedWorkId = "";
+        selectedUploadId = "";
+        await refresh();
+
+        alert(
+          "Carga finalizada.\n\n" +
+          `Agregados: ${added}\n` +
+          `Duplicados omitidos: ${duplicated}\n` +
+          `Filas incompletas omitidas: ${incomplete}\n` +
+          `Prioridades corregidas a normal: ${correctedPriority}`
+        );
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo leer el Excel. Revisa que sea un archivo .xlsx, .xls o .csv válido.");
+        event.target.value = "";
+      }
+    }
+
+    async function refresh() {
+      lockByUser();
+      renderStats();
+      renderWorkList();
+      renderWorkDetail();
+      renderUploadList();
+      await renderUploadDetail();
+      await renderReviewList();
+      renderMasterTable();
+    }
+
+    function renderEmptyBase() {
+      renderStats();
+      renderWorkList();
+      renderWorkDetail();
+      renderUploadList();
+      renderMasterTable();
+      document.getElementById("reviewList").innerHTML = `<div class="empty">No hay SKUs pendientes de revisión.</div>`;
+    }
+
+    function renderStats() {
+      const count = {
+        [STATUS.PENDIENTE]: 0,
+        [STATUS.TRABAJO]: 0,
+        [STATUS.REVISION]: 0,
+        [STATUS.APROBADO]: 0,
+        [STATUS.RECHAZADO]: 0,
+        [STATUS.DESCARGADO]: 0
+      };
+
+      records.forEach(record => {
+        if (count[record.estado] !== undefined) count[record.estado]++;
+      });
+
+      document.getElementById("stats").innerHTML = `
+        <div class="stat"><small>Pendientes</small><strong>${count[STATUS.PENDIENTE]}</strong></div>
+        <div class="stat"><small>En trabajo</small><strong>${count[STATUS.TRABAJO]}</strong></div>
+        <div class="stat"><small>En revisión</small><strong>${count[STATUS.REVISION]}</strong></div>
+        <div class="stat"><small>Aprobados</small><strong>${count[STATUS.APROBADO] + count[STATUS.DESCARGADO]}</strong></div>
+        <div class="stat"><small>Rechazados</small><strong>${count[STATUS.RECHAZADO]}</strong></div>
+      `;
+    }
+
+    function renderSkuItem(record, selectedId, onClickName) {
+      return `
+        <div class="sku-item ${selectedId === record.id ? "active" : ""}" onclick="${onClickName}('${record.id}')">
+          <div class="sku-item-top">
+            <div class="sku-code">${escapeHtml(record.sku)}</div>
+            ${priorityPill(record.prioridad)}
+          </div>
+          <div class="sku-brand">${escapeHtml(record.marca || "Sin marca")}</div>
+          <div>${statusPill(record.estado)}</div>
+        </div>
+      `;
+    }
+
+    function selectWork(id) {
+      if (!requireUser()) return;
+      selectedWorkId = id;
+      renderWorkList();
+      renderWorkDetail();
+    }
+
+    function selectUpload(id) {
+      if (!requireUser()) return;
+      selectedUploadId = id;
+      renderUploadList();
+      renderUploadDetail();
+    }
+
+    function renderWorkList() {
+      const list = sortByPriority(records).filter(record =>
+        record.estado === STATUS.PENDIENTE ||
+        record.estado === STATUS.RECHAZADO ||
+        record.estado === STATUS.TRABAJO
+      );
+
+      const countEl = document.getElementById("workCount");
+      if (countEl) countEl.textContent = list.length;
+
+      const el = document.getElementById("workList");
+      if (!el) return;
+
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">No hay SKUs para trabajar.</div>`;
+        return;
+      }
+
+      el.innerHTML = list.map(record => renderSkuItem(record, selectedWorkId, "selectWork")).join("");
+    }
+
+    function renderWorkDetail() {
+      const el = document.getElementById("workDetail");
+      if (!el) return;
+
+      const record = getRecord(selectedWorkId);
+
+      if (!record) {
+        el.innerHTML = `<div class="empty">Selecciona un SKU para ver el prompt y descargar sus imágenes.</div>`;
+        return;
+      }
+
+      el.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <h2>${escapeHtml(record.sku)}</h2>
+            <small>${escapeHtml(record.marca || "Sin marca")}</small>
+          </div>
+          <div>${statusPill(record.estado)}</div>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-box"><small>Prioridad</small><span>${priorityLabel(record.prioridad)}</span></div>
+          <div class="info-box"><small>Versión</small><span>V${escapeHtml(record.version)}</span></div>
+          <div class="info-box"><small>Medidas</small><span>${escapeHtml(record.medidas || "No indicado")}</span></div>
+          <div class="info-box"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
+          ${record.motivoRechazo ? `
+            <div class="info-box" style="grid-column:1/-1;">
+              <small>Motivo rechazo</small>
+              <span>${escapeHtml(record.motivoRechazo)}</span>
+            </div>
+          ` : ""}
+        </div>
+
+        <div class="prompt-box">${escapeHtml(record.prompt)}</div>
+
+        <div class="actions">
+          ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">Tomar SKU</button>` : ""}
+          <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
+        </div>
+      `;
+    }
+
+    async function takeWork(id) {
+      if (!requireUser()) return;
+
+      const record = getRecord(id);
+      if (!record) return;
+
+      record.estado = STATUS.TRABAJO;
+      record.editor = currentUser();
+      record.takenAt = new Date().toISOString();
+      record.updatedAt = new Date().toISOString();
+
+      await saveRecord(record);
+      selectedUploadId = record.id;
+      await refresh();
+      toast(`SKU tomado por ${currentUser()}.`);
+    }
+
+    function renderUploadList() {
+      const user = currentUser();
+      const list = sortByPriority(records).filter(record =>
+        record.estado === STATUS.TRABAJO &&
+        record.editor === user
+      );
+
+      const countEl = document.getElementById("uploadCount");
+      if (countEl) countEl.textContent = list.length;
+
+      const el = document.getElementById("uploadList");
+      if (!el) return;
+
+      if (!user) {
+        el.innerHTML = `<div class="empty">Selecciona tu usuario.</div>`;
+        return;
+      }
+
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">No tienes SKUs tomados.</div>`;
+        return;
+      }
+
+      el.innerHTML = list.map(record => renderSkuItem(record, selectedUploadId, "selectUpload")).join("");
+    }
+
+    async function renderUploadDetail() {
+      const el = document.getElementById("uploadDetail");
+      if (!el) return;
+
+      const record = getRecord(selectedUploadId);
+
+      if (!record) {
+        el.innerHTML = `<div class="empty">Selecciona un SKU tomado para subir una o varias imágenes trabajadas.</div>`;
+        return;
+      }
+
+      const preview = await getPreviewHtml(record);
+
+      el.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <h2>${escapeHtml(record.sku)}</h2>
+            <small>${escapeHtml(record.marca || "Sin marca")}</small>
+          </div>
+          <div>${statusPill(record.estado)}</div>
+        </div>
+
+        <label
+          class="upload-box"
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDropUpload(event, '${record.id}')"
+        >
+          <strong>Arrastra una o varias imágenes aquí</strong>
+          <small>También puedes hacer clic para seleccionarlas desde tu computador.</small>
+          <input class="input-file" type="file" accept="image/*" multiple onchange="handleGeneratedUpload('${record.id}', this.files)" />
+        </label>
+
+        <div class="preview">${preview}</div>
+      `;
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.currentTarget.classList.add("drag-over");
+    }
+
+    function handleDragLeave(event) {
+      event.preventDefault();
+      event.currentTarget.classList.remove("drag-over");
+    }
+
+    async function handleDropUpload(event, id) {
+      event.preventDefault();
+      event.currentTarget.classList.remove("drag-over");
+      await handleGeneratedUpload(id, event.dataTransfer.files);
+    }
+
+    async function handleGeneratedUpload(id, files) {
+      if (!requireUser()) return;
+      if (!files || !files.length) return;
+
+      const record = getRecord(id);
+      if (!record) return;
+
+      try {
+        const imageFiles = [...files].filter(file => file.type.startsWith("image/"));
+
+        if (!imageFiles.length) {
+          alert("Debes subir archivos de imagen.");
+          return;
+        }
+
+        if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+
+        for (let i = 0; i < imageFiles.length; i++) {
+          const file = imageFiles[i];
+          const imageId = `${record.id}_${Date.now()}_${i}`;
+          const cleanName = safeFileName(file.name);
+          const path = `${STORAGE_ROOT}/${record.id}/${imageId}_${cleanName}`;
+          const ref = storageRef(storage, path);
+
+          await uploadBytes(ref, file, { contentType: file.type });
+
+          record.generatedImages.push({
+            id: imageId,
+            name: file.name,
+            path,
+            size: file.size,
+            type: file.type,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: currentUser()
+          });
+        }
+
+        record.generatedImageName = getRecordImages(record).map(img => img.name).join(", ");
+        record.estado = STATUS.REVISION;
+        record.editor = currentUser();
+        record.uploadedAt = new Date().toISOString();
+        record.updatedAt = new Date().toISOString();
+
+        await saveRecord(record);
+        selectedUploadId = "";
+        await refresh();
+
+        toast(`${imageFiles.length} imagen(es) subidas a revisión.`);
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo subir la imagen a Firebase Storage. Revisa reglas/permisos de Storage.");
+      }
+    }
+
+    async function renderReviewList() {
+      const el = document.getElementById("reviewList");
+      if (!el) return;
+
+      const list = sortByPriority(records).filter(record => record.estado === STATUS.REVISION);
+
+      if (!list.length) {
+        el.innerHTML = `<div class="empty">No hay SKUs pendientes de revisión.</div>`;
+        return;
+      }
+
+      const htmlParts = [];
+
+      for (const record of list) {
+        const preview = await getPreviewHtml(record);
+
+        htmlParts.push(`
+          <article class="review-card">
+            <div>
+              <div class="review-top">
+                <input type="checkbox" class="review-check" value="${escapeHtml(record.id)}">
+                <strong>${escapeHtml(record.sku)}</strong>
+                ${priorityPill(record.prioridad)}
+                ${statusPill(record.estado)}
+              </div>
+
+              <div class="sku-brand">
+                Marca: ${escapeHtml(record.marca || "Sin marca")} · Editor: ${escapeHtml(record.editor || "Sin editor")} · V${escapeHtml(record.version)}
+              </div>
+
+              <div class="actions" style="margin-top:14px;">
+                <button class="btn btn-primary btn-small" onclick="approveOne('${record.id}')">Aprobar y descargar</button>
+                <button class="btn btn-red btn-small" onclick="rejectOne('${record.id}')">Rechazar</button>
+              </div>
+            </div>
+
+            <div class="preview">${preview}</div>
+          </article>
+        `);
+      }
+
+      el.innerHTML = htmlParts.join("");
+    }
+
+    function renderMasterTable() {
+      const el = document.getElementById("masterTable");
+      const masterCount = document.getElementById("masterCount");
+      if (!el || !masterCount) return;
+
+      masterCount.textContent = records.length;
+
+      if (!records.length) {
+        el.innerHTML = `<div class="empty">Aún no hay registros en el master.</div>`;
+        return;
+      }
+
+      const rows = sortByPriority(records).map(record => {
+        const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
+        const imageNames = activeImageNames || record.lastImageNames || "-";
+
+        return `
+          <tr>
+            <td>
+              <div class="master-sku">${escapeHtml(record.sku)}</div>
+              <div class="master-muted">${escapeHtml(record.marca || "Sin marca")}</div>
+            </td>
+            <td>${priorityPill(record.prioridad)}</td>
+            <td>${statusPill(record.estado)}</td>
+            <td>
+              <div>${escapeHtml(record.editor || "-")}</div>
+              <div class="master-muted">${record.takenAt ? "Tomado: " + formatDate(record.takenAt) : ""}</div>
+            </td>
+            <td>
+              <div>${escapeHtml(record.revisor || "-")}</div>
+              <div class="master-muted">${record.reviewedAt ? "Revisado: " + formatDate(record.reviewedAt) : ""}</div>
+            </td>
+            <td>V${escapeHtml(record.version || 1)}</td>
+            <td>
+              <div>${escapeHtml(record.medidas || "-")}</div>
+              ${record.comentario ? `<div class="master-muted">${escapeHtml(record.comentario)}</div>` : ""}
+            </td>
+            <td>${escapeHtml(imageNames)}</td>
+            <td>${escapeHtml(record.motivoRechazo || "-")}</td>
+            <td>
+              <div class="master-muted">
+                Creado: ${formatDate(record.createdAt)}
+                <br>
+                Actualizado: ${formatDate(record.updatedAt)}
+                ${record.downloadedAt ? `<br>Descargado: ${formatDate(record.downloadedAt)}` : ""}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="master-table-wrap">
+          <table class="master-table">
+            <thead>
+              <tr>
+                <th>SKU / Marca</th>
+                <th>Prioridad</th>
+                <th>Estado</th>
+                <th>Editor</th>
+                <th>Revisor</th>
+                <th>Versión</th>
+                <th>Info</th>
+                <th>Imagen</th>
+                <th>Motivo rechazo</th>
+                <th>Fechas</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function approveOne(id) {
+      if (!requireUser()) return;
+      await approveAndDownload([id]);
+    }
+
+    async function rejectOne(id) {
+      if (!requireUser()) return;
+      const reason = prompt("Motivo del rechazo:");
+
+      if (!reason || !reason.trim()) {
+        alert("El motivo de rechazo es obligatorio.");
+        return;
+      }
+
+      await rejectRecords([id], reason.trim());
+    }
+
+    function getSelectedReviewIds() {
+      return [...document.querySelectorAll(".review-check:checked")].map(input => input.value);
+    }
+
+    async function approveSelected() {
+      if (!requireUser()) return;
+      const ids = getSelectedReviewIds();
+
+      if (!ids.length) {
+        alert("Selecciona al menos un SKU.");
+        return;
+      }
+
+      await approveAndDownload(ids);
+    }
+
+    async function rejectSelected() {
+      if (!requireUser()) return;
+
+      const ids = getSelectedReviewIds();
+      const reason = document.getElementById("bulkReason").value.trim();
+
+      if (!ids.length) {
+        alert("Selecciona al menos un SKU.");
+        return;
+      }
+
+      if (!reason) {
+        alert("Para rechazar en lote debes escribir un motivo.");
+        return;
+      }
+
+      await rejectRecords(ids, reason);
+      document.getElementById("bulkReason").value = "";
+    }
+
+    async function approveAndDownload(ids) {
+      const selectedRecords = ids.map(getRecord).filter(Boolean);
+      const validRecords = selectedRecords.filter(record => getRecordImages(record).length);
+
+      if (!validRecords.length) {
+        alert("No hay imágenes para descargar.");
+        return;
+      }
+
+      try {
+        toast("Preparando descarga...");
+
+        const zip = new JSZip();
+        let totalFiles = 0;
+
+        for (const record of validRecords) {
+          const folder = zip.folder(safeFileName(record.sku));
+          const images = getRecordImages(record);
+
+          for (const image of images) {
+            if (!image.path) continue;
+
+            const blob = await getBlob(storageRef(storage, image.path));
+            folder.file(image.name || `${record.sku}_${totalFiles + 1}.jpg`, blob);
+            totalFiles++;
+          }
+        }
+
+        if (!totalFiles) {
+          alert("No se pudo descargar ninguna imagen.");
+          return;
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        saveAs(zipBlob, `aprobadas_flujo_ia_${dateStamp()}.zip`);
+
+        for (const record of validRecords) {
+          const imageNames = getRecordImages(record).map(img => img.name).join(", ");
+          await deleteImagesFromStorage(record);
+
+          record.estado = STATUS.DESCARGADO;
+          record.revisor = currentUser();
+          record.motivoRechazo = "";
+          record.lastImageNames = imageNames;
+          record.generatedImages = [];
+          record.generatedImageId = "";
+          record.generatedImageName = "";
+          record.reviewedAt = new Date().toISOString();
+          record.downloadedAt = new Date().toISOString();
+          record.updatedAt = new Date().toISOString();
+
+          await saveRecord(record);
+        }
+
+        await refresh();
+        toast(`${totalFiles} imagen(es) descargadas y borradas del storage.`);
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo aprobar/descargar. Revisa permisos de Storage o conexión.");
+      }
+    }
+
+    async function rejectRecords(ids, reason) {
+      try {
+        for (const id of ids) {
+          const record = getRecord(id);
+          if (!record) continue;
+
+          const imageNames = getRecordImages(record).map(img => img.name).join(", ");
+          await deleteImagesFromStorage(record);
+
+          record.estado = STATUS.RECHAZADO;
+          record.revisor = currentUser();
+          record.motivoRechazo = reason;
+          record.version = Number(record.version || 1) + 1;
+          record.lastImageNames = imageNames;
+          record.generatedImages = [];
+          record.generatedImageId = "";
+          record.generatedImageName = "";
+          record.reviewedAt = new Date().toISOString();
+          record.updatedAt = new Date().toISOString();
+
+          await saveRecord(record);
+        }
+
+        await refresh();
+        toast(`${ids.length} SKU(s) rechazados. Imágenes borradas del storage.`);
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo rechazar o borrar imágenes. Revisa permisos de Storage.");
+      }
+    }
+
+    async function deleteImagesFromStorage(record) {
+      const images = getRecordImages(record);
+
+      for (const image of images) {
+        if (!image.path) continue;
+
+        try {
+          await deleteObject(storageRef(storage, image.path));
+        } catch (error) {
+          console.warn("No se pudo borrar imagen:", image.path, error);
+        }
+      }
+    }
+
+    function extractMediaUrls(value, found = []) {
+      if (!value) return found;
+
+      if (typeof value === "string") {
+        if (
+          value.includes("media.falabella.com") ||
+          value.includes("imagedelivery.net") ||
+          value.includes("/falabellaCL/")
+        ) {
+          found.push(value);
+        }
+
+        return found;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(item => extractMediaUrls(item, found));
+        return found;
+      }
+
+      if (typeof value === "object") {
+        Object.values(value).forEach(item => extractMediaUrls(item, found));
+      }
+
+      return found;
+    }
+
+    function uniqueUrls(urls) {
+      return [...new Set(
+        urls
+          .map(url => String(url || "").trim())
+          .filter(Boolean)
+          .map(url => url.replace("/w=1500,h=1500,fit=pad", ""))
+      )];
+    }
+
+    function imageFileName(url, index, sku) {
+      try {
+        const noQuery = url.split("?")[0];
+        const beforePublic = noQuery.split("/public")[0];
+        const lastPart = beforePublic.split("/").filter(Boolean).pop();
+
+        if (lastPart) return `${safeFileName(lastPart)}.jpg`;
+      } catch {}
+
+      return `${safeFileName(sku)}_${String(index + 1).padStart(2, "0")}.jpg`;
+    }
+
+    async function downloadSkuImages(id) {
+      if (!requireUser()) return;
+
+      const record = getRecord(id);
+      if (!record) return;
+
+      try {
+        toast("Buscando imágenes...");
+
+        const endpoint = endpointBySku(record.sku);
+        const response = await fetch(endpoint, { cache: "no-store" });
+
+        if (!response.ok) throw new Error(`Error JSON ${response.status}`);
+
+        const json = await response.json();
+        const urls = uniqueUrls(extractMediaUrls(json));
+
+        if (!urls.length) {
+          alert("No se encontraron imágenes para este SKU.");
+          return;
+        }
+
+        const zip = new JSZip();
+        const folder = zip.folder(safeFileName(record.sku));
+        let downloaded = 0;
+
+        for (let i = 0; i < urls.length; i++) {
+          try {
+            const imgResponse = await fetch(urls[i], { cache: "no-store" });
+            if (!imgResponse.ok) continue;
+
+            const blob = await imgResponse.blob();
+            const fileName = imageFileName(urls[i], i, record.sku);
+            folder.file(fileName, blob);
+            downloaded++;
+          } catch {
+            // Si una imagen falla, continúa con las demás.
+          }
+        }
+
+        if (!downloaded) {
+          alert("Se encontraron URLs, pero no se pudo descargar ninguna imagen.");
+          return;
+        }
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, `${safeFileName(record.sku)}.zip`);
+
+        toast(`Descarga lista: ${downloaded} imagen(es).`);
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo descargar las imágenes. Puede ser problema del SKU, JSON, CORS o red.");
+      }
+    }
+
+    function getRecordImages(record) {
+      if (Array.isArray(record.generatedImages) && record.generatedImages.length) return record.generatedImages;
+      return [];
+    }
+
+    async function getPreviewHtml(record) {
+      const images = getRecordImages(record);
+
+      if (!images.length) {
+        return `<span>Sin imagen subida</span>`;
+      }
+
+      try {
+        const items = [];
+
+        for (const image of images) {
+          if (!image.path) continue;
+
+          try {
+            const file = await getBlob(storageRef(storage, image.path));
+            const url = URL.createObjectURL(file);
+
+            items.push(`
+              <div class="preview-item">
+                <img src="${url}" alt="${escapeHtml(image.name || "Imagen generada")}">
+                <div class="preview-name">${escapeHtml(image.name || "")}</div>
+              </div>
+            `);
+          } catch {
+            items.push(`
+              <div class="preview-item">
+                <div class="empty" style="padding:20px;">Imagen no disponible</div>
+                <div class="preview-name">${escapeHtml(image.name || "")}</div>
+              </div>
+            `);
+          }
+        }
+
+        return `<div class="preview-grid">${items.join("")}</div>`;
+      } catch {
+        return `<span>No se pudo cargar la imagen</span>`;
+      }
+    }
+
+    Object.assign(window, {
+      handleUserChange,
+      toggleTheme,
+      setTab,
+      toggleManualPanel,
+      clearManualForm,
+      addManualSku,
+      downloadTemplate,
+      handleExcelUpload,
+      selectWork,
+      selectUpload,
+      takeWork,
+      downloadSkuImages,
+      handleDragOver,
+      handleDragLeave,
+      handleDropUpload,
+      handleGeneratedUpload,
+      approveOne,
+      rejectOne,
+      approveSelected,
+      rejectSelected
+    });
+  </script>
+</body>
+</html>
