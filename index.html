@@ -735,7 +735,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.1.5</span></h1>
+          <h1>Flujo IA <span class="version">V0.1.6</span></h1>
           <small>Falabella Chile · Flujo sincronizado con Firebase</small>
         </div>
       </div>
@@ -900,10 +900,11 @@
       ref as storageRef,
       uploadBytes,
       getBlob,
+      getDownloadURL,
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.1.5";
+    const APP_VERSION = "V0.1.6";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1963,7 +1964,7 @@ Instrucciones:
           for (const image of images) {
             if (!image.path) continue;
 
-            const blob = await getBlob(storageRef(storage, image.path));
+            const blob = await downloadStorageBlob(image.path);
             folder.file(image.name || `${record.sku}_${totalFiles + 1}.jpg`, blob);
             totalFiles++;
           }
@@ -2156,6 +2157,24 @@ Instrucciones:
       return [];
     }
 
+    async function downloadStorageBlob(path) {
+      const ref = storageRef(storage, path);
+
+      try {
+        return await getBlob(ref);
+      } catch (error) {
+        console.warn("getBlob falló, se intentará con getDownloadURL:", path, error);
+        const url = await getDownloadURL(ref);
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`No se pudo descargar archivo de Storage: ${response.status}`);
+        }
+
+        return await response.blob();
+      }
+    }
+
     async function getPreviewHtml(record) {
       const images = getRecordImages(record);
 
@@ -2170,16 +2189,17 @@ Instrucciones:
           if (!image.path) continue;
 
           try {
-            const file = await getBlob(storageRef(storage, image.path));
-            const url = URL.createObjectURL(file);
+            const url = await getDownloadURL(storageRef(storage, image.path));
 
             items.push(`
               <div class="preview-item">
-                <img src="${url}" alt="${escapeHtml(image.name || "Imagen generada")}">
+                <img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Imagen generada")}">
                 <div class="preview-name">${escapeHtml(image.name || "")}</div>
               </div>
             `);
-          } catch {
+          } catch (error) {
+            console.warn("No se pudo cargar preview desde Storage:", image.path, error);
+
             items.push(`
               <div class="preview-item">
                 <div class="empty" style="padding:20px;">Imagen no disponible</div>
