@@ -695,6 +695,118 @@
       line-height: 1.35;
     }
 
+
+    .top-right {
+      position: relative;
+    }
+
+    .role-badge {
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .role-admin {
+      background: rgba(143, 202, 0, .14);
+      color: var(--greenDark);
+      border-color: rgba(143, 202, 0, .28);
+    }
+
+    .role-retocador {
+      background: rgba(59, 130, 246, .13);
+      color: var(--blue);
+      border-color: rgba(59, 130, 246, .25);
+    }
+
+    .role-revisor {
+      background: rgba(250, 204, 21, .17);
+      color: #ca8a04;
+      border-color: rgba(250, 204, 21, .32);
+    }
+
+    .user-guide {
+      display: none;
+      position: absolute;
+      top: 54px;
+      right: 48px;
+      z-index: 90;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid rgba(143, 202, 0, .45);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      width: 230px;
+      font-weight: 900;
+      line-height: 1.25;
+    }
+
+    .user-guide small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .user-guide:before {
+      content: "";
+      position: absolute;
+      top: -7px;
+      right: 28px;
+      width: 12px;
+      height: 12px;
+      background: var(--card);
+      border-left: 1px solid rgba(143, 202, 0, .45);
+      border-top: 1px solid rgba(143, 202, 0, .45);
+      transform: rotate(45deg);
+    }
+
+    body.needs-user:before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(15, 23, 42, .46);
+      backdrop-filter: grayscale(1) blur(1px);
+      pointer-events: none;
+    }
+
+    body.needs-user .topbar {
+      z-index: 70;
+    }
+
+    body.needs-user .main {
+      filter: grayscale(1);
+      opacity: .35;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    body.needs-user #currentUser {
+      position: relative;
+      z-index: 90;
+      background: white;
+      color: #1f2933;
+      border-color: var(--greenFalabella);
+      box-shadow: 0 0 0 7px rgba(143, 202, 0, .25), 0 14px 36px rgba(0, 0, 0, .20);
+      animation: userPulse 1.15s ease-in-out infinite;
+    }
+
+    body.needs-user .user-guide {
+      display: block;
+    }
+
+    @keyframes userPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.035); }
+    }
+
     .toast {
       position: fixed;
       right: 18px;
@@ -735,7 +847,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.1.6</span></h1>
+          <h1>Flujo IA <span class="version">V0.2.1</span></h1>
           <small>Falabella Chile · Flujo sincronizado con Firebase</small>
         </div>
       </div>
@@ -748,7 +860,7 @@
           <option>Fernanda</option>
           <option>Fernando</option>
           <option>Marcos</option>
-          <option>Micaela</option>
+          <option>Mica</option>
           <option>Kathe</option>
           <option>Cesar</option>
           <option>Michelle</option>
@@ -756,6 +868,13 @@
           <option>Rossana</option>
           <option>Sebastian</option>
         </select>
+
+        <span id="userRoleBadge" class="role-badge hidden"></span>
+
+        <div id="userGuide" class="user-guide">
+          Elegir usuario
+          <small>Selecciona tu perfil para activar las opciones correspondientes.</small>
+        </div>
 
         <button id="themeBtn" class="theme-btn" onclick="toggleTheme()" title="Modo oscuro">🌙</button>
       </div>
@@ -904,7 +1023,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.1.6";
+    const APP_VERSION = "V0.2.1";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -928,6 +1047,42 @@ const firebaseConfig = {
       DESCARGADO: "Descargado"
     };
 
+    const SAVED_USER_KEY = "flujo_ia_current_user";
+
+    const ROLES = {
+      ADMIN: "admin",
+      RETOCADOR: "retocador",
+      REVISOR: "revisor"
+    };
+
+    const ROLE_LABELS = {
+      [ROLES.ADMIN]: "Admin",
+      [ROLES.RETOCADOR]: "Retocador",
+      [ROLES.REVISOR]: "Revisor"
+    };
+
+    const USER_ROLES = {
+      Pablo: ROLES.ADMIN,
+      Mica: ROLES.ADMIN,
+      Micaela: ROLES.ADMIN,
+      Mylena: ROLES.RETOCADOR,
+      Fernanda: ROLES.RETOCADOR,
+      Fernando: ROLES.RETOCADOR,
+      Marcos: ROLES.RETOCADOR,
+      Sebastian: ROLES.RETOCADOR,
+      Michelle: ROLES.RETOCADOR,
+      Cesar: ROLES.RETOCADOR,
+      Kathe: ROLES.RETOCADOR,
+      Sandra: ROLES.REVISOR,
+      Rossana: ROLES.REVISOR
+    };
+
+    const ROLE_TABS = {
+      [ROLES.ADMIN]: ["work", "upload", "review", "master"],
+      [ROLES.RETOCADOR]: ["work", "upload", "master"],
+      [ROLES.REVISOR]: ["review", "master"]
+    };
+
     let firebaseReady = false;
     let db = null;
     let storage = null;
@@ -936,12 +1091,15 @@ const firebaseConfig = {
     let selectedWorkId = "";
     let selectedUploadId = "";
     let unsubscribeRecords = null;
+    let userPickerAttempted = false;
 
     document.addEventListener("DOMContentLoaded", async () => {
       loadTheme();
+      restoreSavedUser();
       initFirebase();
       renderEmptyBase();
       lockByUser();
+      requestUserSelectionAttention();
     });
 
     function initFirebase() {
@@ -1013,6 +1171,39 @@ const firebaseConfig = {
       return document.getElementById("currentUser").value.trim();
     }
 
+    function getUserRole(user = currentUser()) {
+      return USER_ROLES[user] || "";
+    }
+
+    function isAdmin() {
+      return getUserRole() === ROLES.ADMIN;
+    }
+
+    function canAccessTab(tab) {
+      const role = getUserRole();
+      return Boolean(role && ROLE_TABS[role] && ROLE_TABS[role].includes(tab));
+    }
+
+    function restoreSavedUser() {
+      const select = document.getElementById("currentUser");
+      const savedUser = localStorage.getItem(SAVED_USER_KEY);
+
+      if (!select || !savedUser) return;
+
+      const exists = [...select.options].some(option => option.value === savedUser);
+      if (exists) select.value = savedUser;
+    }
+
+    function updateSavedUser() {
+      const user = currentUser();
+
+      if (user) {
+        localStorage.setItem(SAVED_USER_KEY, user);
+      } else {
+        localStorage.removeItem(SAVED_USER_KEY);
+      }
+    }
+
     function requireUser() {
       if (!firebaseReady) {
         alert("Primero configura Firebase en el código.");
@@ -1021,6 +1212,34 @@ const firebaseConfig = {
 
       if (!currentUser()) {
         alert("Primero selecciona tu usuario.");
+        requestUserSelectionAttention(true);
+        return false;
+      }
+
+      if (!getUserRole()) {
+        alert("Este usuario no tiene un rol configurado.");
+        return false;
+      }
+
+      return true;
+    }
+
+    function requireAdmin() {
+      if (!requireUser()) return false;
+
+      if (!isAdmin()) {
+        alert("Esta acción está disponible solo para perfiles Admin.");
+        return false;
+      }
+
+      return true;
+    }
+
+    function requireTabAccess(tab) {
+      if (!requireUser()) return false;
+
+      if (!canAccessTab(tab)) {
+        alert("Tu perfil no tiene acceso a esta pestaña.");
         return false;
       }
 
@@ -1028,23 +1247,122 @@ const firebaseConfig = {
     }
 
     async function handleUserChange() {
+      updateSavedUser();
+      userPickerAttempted = Boolean(currentUser());
       lockByUser();
       await refresh();
     }
 
+    function requestUserSelectionAttention(force = false) {
+      if (currentUser()) return;
+      if (userPickerAttempted && !force) return;
+
+      userPickerAttempted = true;
+
+      setTimeout(() => {
+        const select = document.getElementById("currentUser");
+        if (!select || currentUser()) return;
+
+        try {
+          select.focus({ preventScroll: true });
+        } catch {
+          select.focus();
+        }
+
+        if (typeof select.showPicker === "function") {
+          try {
+            select.showPicker();
+          } catch {
+            // Algunos navegadores bloquean abrir el selector sin interacción directa del usuario.
+          }
+        }
+      }, 450);
+    }
+
+    function updateUserRoleBadge() {
+      const badge = document.getElementById("userRoleBadge");
+      if (!badge) return;
+
+      const role = getUserRole();
+
+      if (!currentUser() || !role) {
+        badge.className = "role-badge hidden";
+        badge.textContent = "";
+        return;
+      }
+
+      badge.className = `role-badge role-${role}`;
+      badge.textContent = ROLE_LABELS[role] || role;
+    }
+
+    function syncActiveTabUi() {
+      const user = currentUser();
+      const role = getUserRole();
+      const enabled = Boolean(user) && firebaseReady && Boolean(role);
+      const allowedTabs = ROLE_TABS[role] || [];
+
+      if (enabled && !allowedTabs.includes(activeTab)) {
+        activeTab = allowedTabs[0] || "work";
+      }
+
+      document.querySelectorAll(".tab").forEach(tab => {
+        const tabName = tab.dataset.tab;
+        const allowed = enabled ? allowedTabs.includes(tabName) : true;
+
+        tab.disabled = !enabled || !allowed;
+        tab.classList.toggle("hidden", enabled && !allowed);
+        tab.classList.toggle("active", enabled && tabName === activeTab);
+      });
+
+      document.querySelectorAll(".view").forEach(view => {
+        view.classList.remove("active");
+      });
+
+      const activeView = document.getElementById(`view-${activeTab}`);
+      if (activeView) activeView.classList.add("active");
+    }
+
     function lockByUser() {
-      const enabled = Boolean(currentUser()) && firebaseReady;
+      const user = currentUser();
+      const role = getUserRole(user);
+      const enabled = Boolean(user) && firebaseReady && Boolean(role);
+      const admin = enabled && role === ROLES.ADMIN;
+      const lockMessage = document.getElementById("lockMessage");
 
       ["loadExcelBtn", "manualBtn", "templateBtn"].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.disabled = !enabled;
+        if (!el) return;
+
+        el.disabled = !admin;
+        el.classList.toggle("hidden", enabled && !admin);
       });
 
-      document.getElementById("lockMessage").classList.toggle("hidden", enabled);
+      if (lockMessage) {
+        if (!firebaseReady) {
+          lockMessage.innerHTML = `
+            Falta configurar Firebase o no se pudo conectar.<br>
+            Revisa la configuración del proyecto Firebase.
+          `;
+        } else if (!user) {
+          lockMessage.innerHTML = `
+            <strong>Elegir usuario</strong><br>
+            Selecciona tu perfil en la esquina superior derecha para comenzar.
+          `;
+        } else if (!role) {
+          lockMessage.innerHTML = `
+            <strong>Usuario sin rol</strong><br>
+            Este perfil no tiene permisos configurados.
+          `;
+        }
 
-      document.querySelectorAll(".tab").forEach(tab => {
-        tab.disabled = !enabled;
-      });
+        lockMessage.classList.toggle("hidden", enabled);
+      }
+
+      document.body.classList.toggle("needs-user", !enabled);
+      updateUserRoleBadge();
+      syncActiveTabUi();
+
+      if (!enabled) requestUserSelectionAttention();
     }
 
     function endpointBySku(sku) {
@@ -1155,7 +1473,7 @@ Instrucciones:
     }
 
     async function setTab(tab) {
-      if (!requireUser()) return;
+      if (!requireTabAccess(tab)) return;
 
       activeTab = tab;
 
@@ -1164,15 +1482,7 @@ Instrucciones:
         manualPanel.classList.add("hidden");
       }
 
-      document.querySelectorAll(".tab").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.tab === tab);
-      });
-
-      document.querySelectorAll(".view").forEach(view => {
-        view.classList.remove("active");
-      });
-
-      document.getElementById(`view-${tab}`).classList.add("active");
+      syncActiveTabUi();
       await refresh();
     }
 
@@ -1306,7 +1616,7 @@ Instrucciones:
     }
 
     function toggleManualPanel() {
-      if (!requireUser()) return;
+      if (!requireAdmin()) return;
       document.getElementById("manualPanel").classList.toggle("hidden");
     }
 
@@ -1319,7 +1629,7 @@ Instrucciones:
     }
 
     async function addManualSku() {
-      if (!requireUser()) return;
+      if (!requireAdmin()) return;
 
       const sku = document.getElementById("manualSku").value.trim();
       const marca = document.getElementById("manualMarca").value.trim();
@@ -1353,7 +1663,7 @@ Instrucciones:
     }
 
     function downloadTemplate() {
-      if (!requireUser()) return;
+      if (!requireAdmin()) return;
 
       const rows = [
         {
@@ -1390,7 +1700,10 @@ Instrucciones:
     }
 
     async function handleExcelUpload(event) {
-      if (!requireUser()) return;
+      if (!requireAdmin()) {
+        event.target.value = "";
+        return;
+      }
 
       const file = event.target.files[0];
       if (!file) return;
@@ -1545,14 +1858,14 @@ Instrucciones:
     }
 
     function selectWork(id) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("work")) return;
       selectedWorkId = id;
       renderWorkList();
       renderWorkDetail();
     }
 
     function selectUpload(id) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("upload")) return;
       selectedUploadId = id;
       renderUploadList();
       renderUploadDetail();
@@ -1622,7 +1935,7 @@ Instrucciones:
     }
 
     async function takeWork(id) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("work")) return;
 
       const record = getRecord(id);
       if (!record) return;
@@ -1714,11 +2027,12 @@ Instrucciones:
     async function handleDropUpload(event, id) {
       event.preventDefault();
       event.currentTarget.classList.remove("drag-over");
+      if (!requireTabAccess("upload")) return;
       await handleGeneratedUpload(id, event.dataTransfer.files);
     }
 
     async function handleGeneratedUpload(id, files) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("upload")) return;
       if (!files || !files.length) return;
 
       const record = getRecord(id);
@@ -1890,12 +2204,12 @@ Instrucciones:
     }
 
     async function approveOne(id) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("review")) return;
       await approveAndDownload([id]);
     }
 
     async function rejectOne(id) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("review")) return;
       const reason = prompt("Motivo del rechazo:");
 
       if (!reason || !reason.trim()) {
@@ -1911,7 +2225,7 @@ Instrucciones:
     }
 
     async function approveSelected() {
-      if (!requireUser()) return;
+      if (!requireTabAccess("review")) return;
       const ids = getSelectedReviewIds();
 
       if (!ids.length) {
@@ -1923,7 +2237,7 @@ Instrucciones:
     }
 
     async function rejectSelected() {
-      if (!requireUser()) return;
+      if (!requireTabAccess("review")) return;
 
       const ids = getSelectedReviewIds();
       const reason = document.getElementById("bulkReason").value.trim();
@@ -2098,7 +2412,7 @@ Instrucciones:
     }
 
     async function downloadSkuImages(id) {
-      if (!requireUser()) return;
+      if (!requireTabAccess("work")) return;
 
       const record = getRecord(id);
       if (!record) return;
