@@ -361,6 +361,28 @@
       flex-wrap: wrap;
     }
 
+    .admin-edit-panel {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .admin-edit-panel h3 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .admin-auth-actions {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: 380px 1fr;
@@ -1355,7 +1377,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.0</span></h1>
+          <h1>Flujo IA <span class="version">V1.0.1</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1552,7 +1574,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0";
+    const APP_VERSION = "V1.0.1";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1578,6 +1600,8 @@ const firebaseConfig = {
 
     const SAVED_USER_KEY = "flujo_ia_current_user";
     const READ_NOTIFICATIONS_KEY = "flujo_ia_read_notifications";
+    const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
+    const ADMIN_PIN = "0000";
 
     const ROLES = {
       ADMIN: "admin",
@@ -1594,7 +1618,6 @@ const firebaseConfig = {
     const USER_ROLES = {
       Pablo: ROLES.ADMIN,
       Mica: ROLES.ADMIN,
-      Micaela: ROLES.ADMIN,
       Mylena: ROLES.RETOCADOR,
       Fernanda: ROLES.RETOCADOR,
       Fernando: ROLES.RETOCADOR,
@@ -1620,6 +1643,7 @@ const firebaseConfig = {
     let activeTab = "work";
     let selectedWorkId = "";
     let selectedUploadId = "";
+    let editingWorkId = "";
     let unsubscribeRecords = null;
     let userPickerAttempted = false;
     const pos1Cache = {};
@@ -1724,11 +1748,29 @@ const firebaseConfig = {
       return USER_ROLES[user] || "";
     }
 
+    function isAdminProfile(user = currentUser()) {
+      return getUserRole(user) === ROLES.ADMIN;
+    }
+
+    function isAdminUnlocked(user = currentUser()) {
+      if (!isAdminProfile(user)) return true;
+      return sessionStorage.getItem(ADMIN_UNLOCK_KEY) === user;
+    }
+
+    function hasActiveUserAccess(user = currentUser()) {
+      const role = getUserRole(user);
+      if (!user || !role) return false;
+      if (role === ROLES.ADMIN && !isAdminUnlocked(user)) return false;
+      return true;
+    }
+
     function isAdmin() {
-      return getUserRole() === ROLES.ADMIN;
+      const user = currentUser();
+      return getUserRole(user) === ROLES.ADMIN && isAdminUnlocked(user);
     }
 
     function canAccessTab(tab) {
+      if (!hasActiveUserAccess()) return false;
       const role = getUserRole();
       return Boolean(role && ROLE_TABS[role] && ROLE_TABS[role].includes(tab));
     }
@@ -1770,6 +1812,11 @@ const firebaseConfig = {
         return false;
       }
 
+      if (isAdminProfile() && !isAdminUnlocked()) {
+        alert("Este perfil Admin requiere clave antes de usar la página.");
+        return false;
+      }
+
       return true;
     }
 
@@ -1782,6 +1829,27 @@ const firebaseConfig = {
       }
 
       return true;
+    }
+
+    async function unlockAdminProfile() {
+      const user = currentUser();
+
+      if (!isAdminProfile(user)) {
+        alert("Selecciona Pablo o Mica para usar acceso Admin.");
+        return;
+      }
+
+      const pin = prompt("Clave de acceso Admin:");
+      if (pin === null) return;
+
+      if (pin !== ADMIN_PIN) {
+        alert("Clave Admin incorrecta.");
+        return;
+      }
+
+      sessionStorage.setItem(ADMIN_UNLOCK_KEY, user);
+      toast(`Acceso Admin habilitado para ${user}.`);
+      await refresh();
     }
 
     function requireTabAccess(tab) {
@@ -1841,13 +1909,13 @@ const firebaseConfig = {
       }
 
       badge.className = `role-badge role-${role}`;
-      badge.textContent = ROLE_LABELS[role] || role;
+      badge.textContent = role === ROLES.ADMIN && !isAdminUnlocked() ? "Admin bloqueado" : (ROLE_LABELS[role] || role);
     }
 
     function syncActiveTabUi() {
       const user = currentUser();
       const role = getUserRole();
-      const enabled = Boolean(user) && firebaseReady && Boolean(role);
+      const enabled = Boolean(user) && firebaseReady && Boolean(role) && hasActiveUserAccess(user);
       const allowedTabs = ROLE_TABS[role] || [];
 
       if (enabled && !allowedTabs.includes(activeTab)) {
@@ -1874,8 +1942,9 @@ const firebaseConfig = {
     function lockByUser() {
       const user = currentUser();
       const role = getUserRole(user);
-      const enabled = Boolean(user) && firebaseReady && Boolean(role);
+      const enabled = Boolean(user) && firebaseReady && Boolean(role) && hasActiveUserAccess(user);
       const admin = enabled && role === ROLES.ADMIN;
+      const adminLocked = Boolean(user) && firebaseReady && role === ROLES.ADMIN && !isAdminUnlocked(user);
       const lockMessage = document.getElementById("lockMessage");
 
       ["loadExcelBtn", "manualBtn", "templateBtn"].forEach(id => {
@@ -1902,6 +1971,15 @@ const firebaseConfig = {
             <strong>Usuario sin rol</strong><br>
             Este perfil no tiene permisos configurados.
           `;
+        } else if (adminLocked) {
+          lockMessage.innerHTML = `
+            <strong>Perfil Admin protegido</strong><br>
+            Ingresa la clave para activar las opciones de Pablo/Mica.
+            <div class="admin-auth-actions">
+              <button class="btn btn-primary" onclick="unlockAdminProfile()">Ingresar clave Admin</button>
+              <button class="btn btn-soft" onclick="document.getElementById('currentUser').value=''; handleUserChange();">Cambiar usuario</button>
+            </div>
+          `;
         }
 
         lockMessage.classList.toggle("hidden", enabled);
@@ -1911,7 +1989,7 @@ const firebaseConfig = {
       updateUserRoleBadge();
       syncActiveTabUi();
 
-      if (!enabled) requestUserSelectionAttention();
+      if (!enabled && !adminLocked) requestUserSelectionAttention();
     }
 
     function endpointBySku(sku) {
@@ -2613,6 +2691,40 @@ Instrucciones:
         return;
       }
 
+      const adminEditOpen = isAdmin() && editingWorkId === record.id;
+      const priorityOptionsHtml = [1, 2, 3, 4, 5].map(value => {
+        const label = { 1: "Urgente", 2: "Alta", 3: "Media", 4: "Baja", 5: "Normal" }[value];
+        return `<option value="${value}" ${priorityNumber(record.prioridad) === value ? "selected" : ""}>${value} · ${label}</option>`;
+      }).join("");
+
+      const adminEditPanel = isAdmin() && adminEditOpen ? `
+        <div class="admin-edit-panel">
+          <h3>Editar detalles del SKU</h3>
+          <div class="manual-grid">
+            <div class="field">
+              <label>Marca</label>
+              <input id="editMarca" value="${escapeHtml(record.marca || "")}" placeholder="Marca" />
+            </div>
+            <div class="field">
+              <label>Prioridad</label>
+              <select id="editPrioridad">${priorityOptionsHtml}</select>
+            </div>
+            <div class="field">
+              <label>Medidas</label>
+              <input id="editMedidas" value="${escapeHtml(record.medidas || "")}" placeholder="Ej: 18.5x15x16.5cm" />
+            </div>
+            <div class="field wide">
+              <label>Descripción / Comentario</label>
+              <textarea id="editComentario" placeholder="Descripción o comentario para el prompt">${escapeHtml(record.comentario || "")}</textarea>
+            </div>
+          </div>
+          <div class="manual-actions">
+            <button class="btn btn-soft" onclick="cancelAdminSkuEdit()">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveAdminSkuDetails('${record.id}')">Guardar cambios</button>
+          </div>
+        </div>
+      ` : "";
+
       el.innerHTML = `
         <div class="detail-header">
           <div>
@@ -2647,13 +2759,46 @@ Instrucciones:
           </div>
         </div>
 
+        ${adminEditPanel}
+
         <div class="prompt-box">${escapeHtml(record.prompt)}</div>
 
         <div class="actions">
           ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
+          ${isAdmin() ? `<button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${adminEditOpen ? "Cerrar edición" : "Editar detalles"}</button>` : ""}
         </div>
       `;
+    }
+
+    function toggleAdminSkuEdit(id) {
+      if (!requireAdmin()) return;
+      editingWorkId = editingWorkId === id ? "" : id;
+      renderWorkDetail();
+    }
+
+    function cancelAdminSkuEdit() {
+      editingWorkId = "";
+      renderWorkDetail();
+    }
+
+    async function saveAdminSkuDetails(id) {
+      if (!requireAdmin()) return;
+
+      const record = getRecord(id);
+      if (!record) return;
+
+      record.marca = document.getElementById("editMarca")?.value.trim() || "";
+      record.prioridad = priorityNumber(document.getElementById("editPrioridad")?.value || record.prioridad);
+      record.medidas = document.getElementById("editMedidas")?.value.trim() || "";
+      record.comentario = document.getElementById("editComentario")?.value.trim() || "";
+      record.prompt = buildPrompt(record);
+      record.updatedAt = new Date().toISOString();
+
+      await saveRecord(record);
+      editingWorkId = "";
+      await refresh();
+      toast(`SKU ${record.sku} actualizado.`);
     }
 
     async function takeWork(id) {
@@ -4015,7 +4160,11 @@ Instrucciones:
       approveSelected,
       rejectSelected,
       toggleSelectAllReviews,
+      unlockAdminProfile,
       adminSetEditor,
+      toggleAdminSkuEdit,
+      cancelAdminSkuEdit,
+      saveAdminSkuDetails,
       toggleMetricsPanel,
       downloadMetricsExcel,
       toggleNotificationsPanel,
