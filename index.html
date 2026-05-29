@@ -1157,7 +1157,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.2.4</span></h1>
+          <h1>Flujo IA <span class="version">V0.2.5</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1346,7 +1346,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.2.4";
+    const APP_VERSION = "V0.2.5";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2570,9 +2570,25 @@ Instrucciones:
     }
 
     function addFalabellaImageSize(url) {
-      const clean = String(url || "").replace("/w=1500,h=1500,fit=pad", "");
-      if (!clean.includes("media.falabella.com") || !clean.includes("/public")) return clean;
-      return clean.replace("/public", "/w=1500,h=1500,fit=pad/public");
+      const raw = String(url || "").trim();
+      if (!raw) return "";
+
+      const noSize = raw.replace("/w=1500,h=1500,fit=pad", "");
+
+      if (!noSize.includes("media.falabella.com")) {
+        return noSize;
+      }
+
+      // Falabella media funciona como:
+      // https://media.falabella.com/falabellaCL/SKU_1/w=1500,h=1500,fit=pad
+      // No debe quedar /public al final, porque genera 404 en varias vistas.
+      const noPublic = noSize.replace(/\/public\/?$/, "");
+
+      if (noPublic.endsWith("/w=1500,h=1500,fit=pad")) {
+        return noPublic;
+      }
+
+      return `${noPublic}/w=1500,h=1500,fit=pad`;
     }
 
     function isFalabellaMediaUrl(value) {
@@ -3283,11 +3299,14 @@ Instrucciones:
 
     function imageFileName(url, index, sku) {
       try {
-        const noQuery = url.split("?")[0];
-        const beforePublic = noQuery.split("/public")[0];
-        const lastPart = beforePublic.split("/").filter(Boolean).pop();
+        const noQuery = String(url || "").split("?")[0];
+        const cleanUrl = noQuery
+          .replace(/\/public\/?$/, "")
+          .replace(/\/w=1500,h=1500,fit=pad\/?$/, "");
 
-        if (lastPart) return `${safeFileName(lastPart)}.jpg`;
+        const lastPart = cleanUrl.split("/").filter(Boolean).pop();
+
+        if (lastPart && !lastPart.includes("w=1500")) return `${safeFileName(lastPart)}.jpg`;
       } catch {}
 
       return `${safeFileName(sku)}_${String(index + 1).padStart(2, "0")}.jpg`;
