@@ -1036,6 +1036,202 @@
       border-color: rgba(250, 204, 21, .32);
     }
 
+    .notification-wrap {
+      position: relative;
+    }
+
+    .notification-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 17px;
+      position: relative;
+    }
+
+    .notification-badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      min-width: 19px;
+      height: 19px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--red);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 900;
+      border: 2px solid var(--card);
+    }
+
+    .notification-panel {
+      position: absolute;
+      top: 50px;
+      right: 0;
+      width: min(390px, 92vw);
+      max-height: 430px;
+      overflow-y: auto;
+      z-index: 95;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 10px;
+    }
+
+    .notification-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 8px 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+      font-weight: 900;
+    }
+
+    .notification-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .notification-item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      background: var(--card2);
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .notification-item strong {
+      font-size: 13px;
+    }
+
+    .notification-item small {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .notification-approved {
+      border-color: rgba(34, 197, 94, .38);
+      background: rgba(34, 197, 94, .12);
+    }
+
+    .notification-rejected {
+      border-color: rgba(239, 68, 68, .38);
+      background: rgba(239, 68, 68, .12);
+    }
+
+    .notification-review {
+      border-color: rgba(250, 204, 21, .40);
+      background: rgba(250, 204, 21, .13);
+    }
+
+    .detail-preview {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .detail-preview-frame {
+      width: 130px;
+      aspect-ratio: 1 / 1;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: white;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+    }
+
+    .detail-preview-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      cursor: zoom-in;
+    }
+
+    .detail-preview-text small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 5px;
+    }
+
+    .detail-preview-text strong {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .detail-preview-text span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .bar-stack {
+      height: 100%;
+      display: flex;
+      width: 100%;
+    }
+
+    .bar-fill-approved {
+      height: 100%;
+      background: var(--greenFalabella);
+    }
+
+    .bar-fill-rejected {
+      height: 100%;
+      background: var(--red);
+    }
+
+    .metric-legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      margin: 0 0 12px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+      margin-right: 5px;
+    }
+
+    .legend-approved { background: var(--greenFalabella); }
+    .legend-rejected { background: var(--red); }
+
+    .bar-counts {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
     .user-guide {
       display: none;
       position: absolute;
@@ -1146,6 +1342,8 @@
       .manual-grid { grid-template-columns: 1fr; }
       .manual-grid .wide { grid-column: span 1; }
       .info-grid { grid-template-columns: 1fr; }
+      .detail-preview { grid-template-columns: 1fr; }
+      .detail-preview-frame { width: 100%; max-width: 220px; }
       .sku-list { max-height: none; }
     }
   </style>
@@ -1157,7 +1355,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.2.6</span></h1>
+          <h1>Flujo IA <span class="version">V1.0</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1180,6 +1378,14 @@
         </select>
 
         <span id="userRoleBadge" class="role-badge hidden"></span>
+
+        <div id="notificationWrap" class="notification-wrap hidden">
+          <button id="notificationBtn" class="notification-btn" onclick="toggleNotificationsPanel()" title="Notificaciones">
+            🔔
+            <span id="notificationBadge" class="notification-badge hidden">0</span>
+          </button>
+          <div id="notificationPanel" class="notification-panel hidden"></div>
+        </div>
 
         <div id="userGuide" class="user-guide">
           Elegir usuario
@@ -1346,7 +1552,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.2.6";
+    const APP_VERSION = "V1.0";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1371,6 +1577,7 @@ const firebaseConfig = {
     };
 
     const SAVED_USER_KEY = "flujo_ia_current_user";
+    const READ_NOTIFICATIONS_KEY = "flujo_ia_read_notifications";
 
     const ROLES = {
       ADMIN: "admin",
@@ -1475,6 +1682,7 @@ const firebaseConfig = {
     function migrateRecord(record) {
       if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
       if (!Array.isArray(record.uploadEvents)) record.uploadEvents = [];
+      if (!Array.isArray(record.reviewEvents)) record.reviewEvents = [];
       if (!record.version) record.version = 1;
       if (record.rejectionCount === undefined || record.rejectionCount === null) {
         record.rejectionCount = Math.max(Number(record.version || 1) - 1, 0);
@@ -1813,6 +2021,130 @@ Instrucciones:
       window.toastTimer = setTimeout(() => {
         el.style.display = "none";
       }, 2800);
+    }
+
+    function readNotificationKeys() {
+      try {
+        return JSON.parse(localStorage.getItem(READ_NOTIFICATIONS_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function saveNotificationKeys(keys) {
+      const unique = [...new Set(keys)].slice(-600);
+      localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(unique));
+    }
+
+    function notificationTimestamp(record) {
+      return record.reviewedAt || record.downloadedAt || record.uploadedAt || record.updatedAt || record.createdAt || "";
+    }
+
+    function buildNotificationsForCurrentUser() {
+      const user = currentUser();
+      const role = getUserRole(user);
+      if (!user || !role || role === ROLES.ADMIN) return [];
+
+      const items = [];
+
+      records.forEach(record => {
+        if (role === ROLES.RETOCADOR && record.editor === user) {
+          if (record.estado === STATUS.DESCARGADO) {
+            const ts = notificationTimestamp(record);
+            items.push({
+              key: `${record.id}|approved|${ts}`,
+              type: "approved",
+              title: `SKU aprobado: ${record.sku}`,
+              text: `Tu imagen fue aprobada y descargada.`,
+              date: ts
+            });
+          }
+
+          if (record.estado === STATUS.RECHAZADO) {
+            const ts = notificationTimestamp(record);
+            items.push({
+              key: `${record.id}|rejected|${ts}`,
+              type: "rejected",
+              title: `SKU rechazado: ${record.sku}`,
+              text: record.motivoRechazo ? `Motivo: ${record.motivoRechazo}` : "Revisa el motivo en el detalle del SKU.",
+              date: ts
+            });
+          }
+        }
+
+        if (role === ROLES.REVISOR && record.estado === STATUS.REVISION) {
+          const ts = record.uploadedAt || record.updatedAt || record.createdAt || "";
+          items.push({
+            key: `${record.id}|review|${ts}`,
+            type: "review",
+            title: `Nuevo SKU en revisión: ${record.sku}`,
+            text: `Editor: ${record.editor || "Sin editor"}. ${getRecordImages(record).length} imagen(es) para revisar.`,
+            date: ts
+          });
+        }
+      });
+
+      return items.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 80);
+    }
+
+    function renderNotifications() {
+      const wrap = document.getElementById("notificationWrap");
+      const badge = document.getElementById("notificationBadge");
+      const panel = document.getElementById("notificationPanel");
+      if (!wrap || !badge || !panel) return;
+
+      const role = getUserRole();
+      const enabled = Boolean(currentUser()) && (role === ROLES.RETOCADOR || role === ROLES.REVISOR);
+      wrap.classList.toggle("hidden", !enabled);
+
+      if (!enabled) {
+        panel.classList.add("hidden");
+        badge.classList.add("hidden");
+        badge.textContent = "0";
+        panel.innerHTML = "";
+        return;
+      }
+
+      const notifications = buildNotificationsForCurrentUser();
+      const read = new Set(readNotificationKeys());
+      const unread = notifications.filter(item => !read.has(item.key)).length;
+
+      badge.textContent = unread > 99 ? "99+" : String(unread);
+      badge.classList.toggle("hidden", unread === 0);
+
+      if (panel.classList.contains("hidden")) return;
+
+      panel.innerHTML = `
+        <div class="notification-head">
+          <span>Notificaciones</span>
+          <button class="btn btn-soft btn-small" onclick="markNotificationsRead()">Marcar leídas</button>
+        </div>
+        ${notifications.length ? `
+          <div class="notification-list">
+            ${notifications.map(item => `
+              <div class="notification-item notification-${item.type}">
+                <strong>${escapeHtml(item.title)}</strong>
+                <div>${escapeHtml(item.text)}</div>
+                <small>${formatDate(item.date) || "Sin fecha"}${read.has(item.key) ? " · Leída" : " · Nueva"}</small>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="empty" style="padding:18px;">No tienes notificaciones.</div>`}
+      `;
+    }
+
+    function toggleNotificationsPanel() {
+      const panel = document.getElementById("notificationPanel");
+      if (!panel) return;
+      panel.classList.toggle("hidden");
+      renderNotifications();
+    }
+
+    function markNotificationsRead() {
+      const notifications = buildNotificationsForCurrentUser();
+      const read = readNotificationKeys();
+      saveNotificationKeys([...read, ...notifications.map(item => item.key)]);
+      renderNotifications();
     }
 
     function toggleTheme() {
@@ -2166,6 +2498,7 @@ Instrucciones:
     async function refresh() {
       lockByUser();
       renderStats();
+      renderNotifications();
       renderWorkList();
       renderWorkDetail();
       renderUploadList();
@@ -2176,6 +2509,7 @@ Instrucciones:
 
     function renderEmptyBase() {
       renderStats();
+      renderNotifications();
       renderWorkList();
       renderWorkDetail();
       renderUploadList();
@@ -2300,6 +2634,17 @@ Instrucciones:
               <span>${escapeHtml(record.motivoRechazo)}</span>
             </div>
           ` : ""}
+        </div>
+
+        <div class="detail-preview">
+          <div class="detail-preview-frame">
+            <img src="${escapeHtml(buildFalabellaViewUrl(record.sku, "1"))}" alt="POS1 actual" onclick="openImageModal('${encodeForInline(buildFalabellaViewUrl(record.sku, "1"))}', '${encodeForInline(record.sku + " · POS1 actual")}')">
+          </div>
+          <div class="detail-preview-text">
+            <small>Previsualización POS1</small>
+            <strong>${escapeHtml(record.sku)}_1</strong>
+            <span>Referencia actual del producto para trabajar la ambientación.</span>
+          </div>
         </div>
 
         <div class="prompt-box">${escapeHtml(record.prompt)}</div>
@@ -2955,6 +3300,50 @@ Instrucciones:
       return d;
     }
 
+    function createReviewEvents(record, result) {
+      const images = getRecordImages(record);
+      const reviewedAt = new Date().toISOString();
+      const editor = record.editor || "Sin editor";
+      const revisor = currentUser() || "Sin revisor";
+
+      if (!Array.isArray(record.reviewEvents)) record.reviewEvents = [];
+
+      images.forEach((image, index) => {
+        record.reviewEvents.push({
+          id: `${record.id}_${result}_${Date.now()}_${index}_${Math.random().toString(16).slice(2)}`,
+          sku: record.sku,
+          name: image.name || "",
+          editor,
+          revisor,
+          result,
+          reviewedAt,
+          uploadedAt: image.uploadedAt || record.uploadedAt || "",
+          size: image.size || 0
+        });
+      });
+    }
+
+    function getReviewEvents(record) {
+      if (Array.isArray(record.reviewEvents) && record.reviewEvents.length) return record.reviewEvents;
+
+      const status = record.estado;
+      if (![STATUS.DESCARGADO, STATUS.RECHAZADO].includes(status)) return [];
+
+      const result = status === STATUS.DESCARGADO ? "approved" : "rejected";
+      const baseDate = record.reviewedAt || record.downloadedAt || record.updatedAt || record.uploadedAt || record.createdAt;
+      const count = Math.max(1, (record.lastImageNames || "").split(",").map(x => x.trim()).filter(Boolean).length);
+
+      return Array.from({ length: count }, (_, index) => ({
+        id: `${record.id}_${result}_legacy_${index}`,
+        sku: record.sku,
+        name: (record.lastImageNames || "").split(",")[index]?.trim() || "",
+        editor: record.editor || "Sin editor",
+        revisor: record.revisor || "Sin revisor",
+        result,
+        reviewedAt: baseDate
+      }));
+    }
+
     function getUploadEvents(record) {
       if (Array.isArray(record.uploadEvents) && record.uploadEvents.length) return record.uploadEvents;
 
@@ -2969,46 +3358,132 @@ Instrucciones:
       }));
     }
 
+    function endOfWeekFromStart(weekStart) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + 6);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+
     function calculateMetrics() {
       const now = new Date();
       const weekStart = startOfWeek(now);
+      const weekEnd = endOfWeekFromStart(weekStart);
       const monthStart = startOfMonth(now);
-      const users = [...new Set(Object.keys(USER_ROLES).filter(user => USER_ROLES[user] === ROLES.RETOCADOR))].sort((a, b) => a.localeCompare(b, "es"));
+      const users = [...new Set(Object.keys(USER_ROLES).filter(user =>
+        USER_ROLES[user] === ROLES.RETOCADOR || USER_ROLES[user] === ROLES.ADMIN
+      ))].sort((a, b) => a.localeCompare(b, "es"));
       const byUser = {};
+      const events = [];
 
       users.forEach(user => {
-        byUser[user] = { week: 0, month: 0, total: 0 };
+        byUser[user] = {
+          weekApproved: 0,
+          weekRejected: 0,
+          monthApproved: 0,
+          monthRejected: 0,
+          totalApproved: 0,
+          totalRejected: 0
+        };
       });
 
       records.forEach(record => {
-        getUploadEvents(record).forEach(event => {
-          const user = event.editor || event.uploadedBy || record.editor || "Sin editor";
-          if (!byUser[user]) byUser[user] = { week: 0, month: 0, total: 0 };
+        getReviewEvents(record).forEach(event => {
+          const user = event.editor || record.editor || "Sin editor";
+          if (!byUser[user]) {
+            byUser[user] = {
+              weekApproved: 0,
+              weekRejected: 0,
+              monthApproved: 0,
+              monthRejected: 0,
+              totalApproved: 0,
+              totalRejected: 0
+            };
+          }
 
-          const eventDate = new Date(event.uploadedAt || record.uploadedAt || record.updatedAt || record.createdAt || Date.now());
+          const eventDate = new Date(event.reviewedAt || event.date || record.reviewedAt || record.updatedAt || Date.now());
           if (Number.isNaN(eventDate.getTime())) return;
 
-          byUser[user].total += 1;
-          if (eventDate >= weekStart) byUser[user].week += 1;
-          if (eventDate >= monthStart) byUser[user].month += 1;
+          const isApproved = event.result === "approved";
+          const totalKey = isApproved ? "totalApproved" : "totalRejected";
+          const weekKey = isApproved ? "weekApproved" : "weekRejected";
+          const monthKey = isApproved ? "monthApproved" : "monthRejected";
+
+          byUser[user][totalKey] += 1;
+          if (eventDate >= weekStart && eventDate <= weekEnd) byUser[user][weekKey] += 1;
+          if (eventDate >= monthStart) byUser[user][monthKey] += 1;
+
+          events.push({
+            fecha: eventDate.toISOString(),
+            semanaInicio: weekStart.toISOString(),
+            sku: event.sku || record.sku,
+            archivo: event.name || "",
+            retocador: user,
+            revisor: event.revisor || record.revisor || "",
+            resultado: isApproved ? "Aprobado" : "Rechazado"
+          });
         });
       });
 
-      return { byUser, weekStart, monthStart };
+      return { byUser, events, weekStart, weekEnd, monthStart };
     }
 
-    function renderBarChart(rows, key) {
-      const max = Math.max(...rows.map(row => row[key]), 1);
+    function metricRows() {
+      const { byUser, events, weekStart, weekEnd, monthStart } = calculateMetrics();
+      const rows = Object.keys(byUser).map(user => {
+        const data = byUser[user];
+        const weekTotal = data.weekApproved + data.weekRejected;
+        const monthTotal = data.monthApproved + data.monthRejected;
+        const total = data.totalApproved + data.totalRejected;
+
+        return {
+          user,
+          weekApproved: data.weekApproved,
+          weekRejected: data.weekRejected,
+          weekTotal,
+          monthApproved: data.monthApproved,
+          monthRejected: data.monthRejected,
+          monthTotal,
+          totalApproved: data.totalApproved,
+          totalRejected: data.totalRejected,
+          total
+        };
+      }).sort((a, b) => b.weekTotal - a.weekTotal || b.monthTotal - a.monthTotal || a.user.localeCompare(b.user, "es"));
+
+      return { rows, events, weekStart, weekEnd, monthStart };
+    }
+
+    function renderStackedBarChart(rows, period) {
+      const approvedKey = period === "week" ? "weekApproved" : "monthApproved";
+      const rejectedKey = period === "week" ? "weekRejected" : "monthRejected";
+      const totalKey = period === "week" ? "weekTotal" : "monthTotal";
+      const max = Math.max(...rows.map(row => row[totalKey]), 1);
 
       return `
+        <div class="metric-legend">
+          <span><i class="legend-dot legend-approved"></i>Aprobadas</span>
+          <span><i class="legend-dot legend-rejected"></i>Rechazadas</span>
+        </div>
         <div class="bar-list">
-          ${rows.map(row => `
-            <div class="bar-row">
-              <div>${escapeHtml(row.user)}</div>
-              <div class="bar-track"><div class="bar-fill" style="width:${Math.round((row[key] / max) * 100)}%"></div></div>
-              <div>${row[key]}</div>
-            </div>
-          `).join("")}
+          ${rows.map(row => {
+            const total = row[totalKey];
+            const approvedWidth = total ? (row[approvedKey] / total) * 100 : 0;
+            const rejectedWidth = total ? (row[rejectedKey] / total) * 100 : 0;
+            const trackWidth = Math.round((total / max) * 100);
+
+            return `
+              <div class="bar-row">
+                <div>${escapeHtml(row.user)}</div>
+                <div class="bar-track">
+                  <div class="bar-stack" style="width:${trackWidth}%">
+                    <div class="bar-fill-approved" style="width:${approvedWidth}%"></div>
+                    <div class="bar-fill-rejected" style="width:${rejectedWidth}%"></div>
+                  </div>
+                </div>
+                <div class="bar-counts">${row[approvedKey]} / ${row[rejectedKey]} · ${total}</div>
+              </div>
+            `;
+          }).join("")}
         </div>
       `;
     }
@@ -3025,50 +3500,65 @@ Instrucciones:
 
       if (panel.classList.contains("hidden")) return;
 
-      const { byUser, weekStart, monthStart } = calculateMetrics();
-      const rows = Object.keys(byUser).map(user => ({ user, ...byUser[user] }))
-        .sort((a, b) => b.week - a.week || b.month - a.month || a.user.localeCompare(b.user, "es"));
-      const totalWeek = rows.reduce((sum, row) => sum + row.week, 0);
-      const totalMonth = rows.reduce((sum, row) => sum + row.month, 0);
-      const totalAll = rows.reduce((sum, row) => sum + row.total, 0);
+      const { rows, weekStart, weekEnd, monthStart } = metricRows();
+      const totalWeekApproved = rows.reduce((sum, row) => sum + row.weekApproved, 0);
+      const totalWeekRejected = rows.reduce((sum, row) => sum + row.weekRejected, 0);
+      const totalMonthApproved = rows.reduce((sum, row) => sum + row.monthApproved, 0);
+      const totalMonthRejected = rows.reduce((sum, row) => sum + row.monthRejected, 0);
+      const totalAllApproved = rows.reduce((sum, row) => sum + row.totalApproved, 0);
+      const totalAllRejected = rows.reduce((sum, row) => sum + row.totalRejected, 0);
 
       panel.innerHTML = `
         <div class="metrics-title">
           <div>
             <h3>Métricas de producción</h3>
-            <div class="master-muted">Cuenta cada imagen/vista subida por retocador. Semana desde ${formatDate(weekStart.toISOString()).split(" ")[0]} · Mes desde ${formatDate(monthStart.toISOString()).split(" ")[0]}</div>
+            <div class="master-muted">Cuenta cada imagen/vista revisada por retocador. Semana de lunes ${formatDate(weekStart.toISOString()).split(" ")[0]} a domingo ${formatDate(weekEnd.toISOString()).split(" ")[0]} · Mes desde ${formatDate(monthStart.toISOString()).split(" ")[0]}</div>
           </div>
-          <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar métricas</button>
+          <div class="panel-title-actions">
+            <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Descargar métricas Excel</button>
+            <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar métricas</button>
+          </div>
         </div>
 
         <div class="metrics-grid">
-          <div class="metric-card"><small>Fotos esta semana</small><strong>${totalWeek}</strong></div>
-          <div class="metric-card"><small>Fotos este mes</small><strong>${totalMonth}</strong></div>
-          <div class="metric-card"><small>Fotos registradas</small><strong>${totalAll}</strong></div>
+          <div class="metric-card"><small>Aprobadas esta semana</small><strong>${totalWeekApproved}</strong></div>
+          <div class="metric-card"><small>Rechazadas esta semana</small><strong>${totalWeekRejected}</strong></div>
+          <div class="metric-card"><small>Total esta semana</small><strong>${totalWeekApproved + totalWeekRejected}</strong></div>
+          <div class="metric-card"><small>Aprobadas este mes</small><strong>${totalMonthApproved}</strong></div>
+          <div class="metric-card"><small>Rechazadas este mes</small><strong>${totalMonthRejected}</strong></div>
+          <div class="metric-card"><small>Total registrado</small><strong>${totalAllApproved + totalAllRejected}</strong></div>
         </div>
 
         <div class="metrics-title"><h3>Comparativo semanal</h3></div>
-        ${renderBarChart(rows, "week")}
+        ${renderStackedBarChart(rows, "week")}
 
         <div class="metrics-title"><h3>Comparativo mensual</h3></div>
-        ${renderBarChart(rows, "month")}
+        ${renderStackedBarChart(rows, "month")}
 
         <div class="master-table-wrap">
           <table class="metrics-table">
             <thead>
               <tr>
                 <th>Retocador</th>
-                <th>Semana</th>
-                <th>Mes</th>
-                <th>Total registrado</th>
+                <th>Aprobadas semana</th>
+                <th>Rechazadas semana</th>
+                <th>Total semana</th>
+                <th>Aprobadas mes</th>
+                <th>Rechazadas mes</th>
+                <th>Total mes</th>
+                <th>Total histórico</th>
               </tr>
             </thead>
             <tbody>
               ${rows.map(row => `
                 <tr>
                   <td><strong>${escapeHtml(row.user)}</strong></td>
-                  <td>${row.week}</td>
-                  <td>${row.month}</td>
+                  <td>${row.weekApproved}</td>
+                  <td>${row.weekRejected}</td>
+                  <td>${row.weekTotal}</td>
+                  <td>${row.monthApproved}</td>
+                  <td>${row.monthRejected}</td>
+                  <td>${row.monthTotal}</td>
                   <td>${row.total}</td>
                 </tr>
               `).join("")}
@@ -3076,6 +3566,47 @@ Instrucciones:
           </table>
         </div>
       `;
+    }
+
+    function downloadMetricsExcel() {
+      if (!requireAdmin()) return;
+
+      const { rows, events, weekStart, weekEnd, monthStart } = metricRows();
+      const summaryRows = rows.map(row => ({
+        Retocador: row.user,
+        "Aprobadas semana": row.weekApproved,
+        "Rechazadas semana": row.weekRejected,
+        "Total semana": row.weekTotal,
+        "Aprobadas mes": row.monthApproved,
+        "Rechazadas mes": row.monthRejected,
+        "Total mes": row.monthTotal,
+        "Aprobadas histórico": row.totalApproved,
+        "Rechazadas histórico": row.totalRejected,
+        "Total histórico": row.total
+      }));
+
+      const detailRows = events
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+        .map(event => ({
+          Fecha: formatDate(event.fecha),
+          SKU: event.sku,
+          Archivo: event.archivo,
+          Retocador: event.retocador,
+          Revisor: event.revisor,
+          Resultado: event.resultado
+        }));
+
+      const infoRows = [
+        { Campo: "Semana", Valor: `${formatDate(weekStart.toISOString()).split(" ")[0]} a ${formatDate(weekEnd.toISOString()).split(" ")[0]}` },
+        { Campo: "Mes desde", Valor: formatDate(monthStart.toISOString()).split(" ")[0] },
+        { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(infoRows), "Periodo");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Resumen");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), "Detalle");
+      XLSX.writeFile(workbook, `metricas_flujo_ia_${dateStamp()}.xlsx`);
     }
 
     async function approveOne(id) {
@@ -3193,6 +3724,7 @@ Instrucciones:
 
         for (const record of validRecords) {
           const imageNames = getRecordImages(record).map(img => img.name).join(", ");
+          createReviewEvents(record, "approved");
           await deleteImagesFromStorage(record);
 
           record.estado = STATUS.DESCARGADO;
@@ -3226,6 +3758,7 @@ Instrucciones:
           if (!record) continue;
 
           const imageNames = getRecordImages(record).map(img => img.name).join(", ");
+          createReviewEvents(record, "rejected");
           await deleteImagesFromStorage(record);
 
           record.estado = STATUS.RECHAZADO;
@@ -3484,6 +4017,9 @@ Instrucciones:
       toggleSelectAllReviews,
       adminSetEditor,
       toggleMetricsPanel,
+      downloadMetricsExcel,
+      toggleNotificationsPanel,
+      markNotificationsRead,
       openImageModal,
       closeImageModal
     });
