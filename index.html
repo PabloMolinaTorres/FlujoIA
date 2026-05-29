@@ -1313,6 +1313,12 @@
       user-select: none;
     }
 
+    body.needs-user .lock-message {
+      position: relative;
+      z-index: 80;
+      pointer-events: auto;
+    }
+
     body.needs-user #currentUser {
       position: relative;
       z-index: 90;
@@ -1377,7 +1383,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.0.1</span></h1>
+          <h1>Flujo IA <span class="version">V1.0.2</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1411,7 +1417,7 @@
 
         <div id="userGuide" class="user-guide">
           Elegir usuario
-          <small>Selecciona tu perfil para activar las opciones correspondientes.</small>
+          <small>Selecciona tu perfil. Si es Admin, se pedirá la clave al elegirlo.</small>
         </div>
 
         <button id="themeBtn" class="theme-btn" onclick="toggleTheme()" title="Modo oscuro">🌙</button>
@@ -1574,7 +1580,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0.1";
+    const APP_VERSION = "V1.0.2";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1782,7 +1788,16 @@ const firebaseConfig = {
       if (!select || !savedUser) return;
 
       const exists = [...select.options].some(option => option.value === savedUser);
-      if (exists) select.value = savedUser;
+      if (!exists) return;
+
+      // Los perfiles Admin no se restauran automáticamente si no tienen clave activa.
+      // Así evitamos que Pablo/Mica entren o queden bloqueados al abrir la página.
+      if (getUserRole(savedUser) === ROLES.ADMIN && sessionStorage.getItem(ADMIN_UNLOCK_KEY) !== savedUser) {
+        localStorage.removeItem(SAVED_USER_KEY);
+        return;
+      }
+
+      select.value = savedUser;
     }
 
     function updateSavedUser() {
@@ -1831,6 +1846,26 @@ const firebaseConfig = {
       return true;
     }
 
+    async function requestAdminUnlockForUser(user) {
+      if (!isAdminProfile(user)) return true;
+      if (isAdminUnlocked(user)) return true;
+
+      const pin = prompt(`Clave Admin para ${user}:`);
+
+      if (pin === null) {
+        return false;
+      }
+
+      if (pin !== ADMIN_PIN) {
+        alert("Clave Admin incorrecta.");
+        return false;
+      }
+
+      sessionStorage.setItem(ADMIN_UNLOCK_KEY, user);
+      toast(`Acceso Admin habilitado para ${user}.`);
+      return true;
+    }
+
     async function unlockAdminProfile() {
       const user = currentUser();
 
@@ -1839,16 +1874,15 @@ const firebaseConfig = {
         return;
       }
 
-      const pin = prompt("Clave de acceso Admin:");
-      if (pin === null) return;
+      const unlocked = await requestAdminUnlockForUser(user);
 
-      if (pin !== ADMIN_PIN) {
-        alert("Clave Admin incorrecta.");
-        return;
+      if (!unlocked) {
+        document.getElementById("currentUser").value = "";
+        sessionStorage.removeItem(ADMIN_UNLOCK_KEY);
+        updateSavedUser();
       }
 
-      sessionStorage.setItem(ADMIN_UNLOCK_KEY, user);
-      toast(`Acceso Admin habilitado para ${user}.`);
+      lockByUser();
       await refresh();
     }
 
@@ -1864,8 +1898,25 @@ const firebaseConfig = {
     }
 
     async function handleUserChange() {
+      const select = document.getElementById("currentUser");
+      const user = currentUser();
+      userPickerAttempted = Boolean(user);
+
+      if (isAdminProfile(user) && !isAdminUnlocked(user)) {
+        const unlocked = await requestAdminUnlockForUser(user);
+
+        if (!unlocked) {
+          if (select) select.value = "";
+          sessionStorage.removeItem(ADMIN_UNLOCK_KEY);
+          updateSavedUser();
+          lockByUser();
+          await refresh();
+          requestUserSelectionAttention(true);
+          return;
+        }
+      }
+
       updateSavedUser();
-      userPickerAttempted = Boolean(currentUser());
       lockByUser();
       await refresh();
     }
@@ -1974,7 +2025,7 @@ const firebaseConfig = {
         } else if (adminLocked) {
           lockMessage.innerHTML = `
             <strong>Perfil Admin protegido</strong><br>
-            Ingresa la clave para activar las opciones de Pablo/Mica.
+            Vuelve a seleccionar Pablo/Mica para ingresar la clave o cambia a otro usuario.
             <div class="admin-auth-actions">
               <button class="btn btn-primary" onclick="unlockAdminProfile()">Ingresar clave Admin</button>
               <button class="btn btn-soft" onclick="document.getElementById('currentUser').value=''; handleUserChange();">Cambiar usuario</button>
