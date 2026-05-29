@@ -1383,7 +1383,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.0.2</span></h1>
+          <h1>Flujo IA <span class="version">V1.0.3</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1580,7 +1580,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0.2";
+    const APP_VERSION = "V1.0.3";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1608,6 +1608,11 @@ const firebaseConfig = {
     const READ_NOTIFICATIONS_KEY = "flujo_ia_read_notifications";
     const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
     const ADMIN_PIN = "0000";
+    const MAX_UPLOAD_FILES_PER_BATCH = 100;
+    const MAX_IMAGES_PER_SKU = 3;
+    const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+    const ALLOWED_UPLOAD_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif"];
+    const ALLOWED_UPLOAD_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 
     const ROLES = {
       ADMIN: "admin",
@@ -1652,6 +1657,8 @@ const firebaseConfig = {
     let editingWorkId = "";
     let unsubscribeRecords = null;
     let userPickerAttempted = false;
+    let uploadProcessing = false;
+    let reviewProcessing = false;
     const pos1Cache = {};
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -2938,13 +2945,14 @@ Instrucciones:
         >
           <strong>Arrastra una o varias imágenes aquí</strong>
           <small>${selectedText}</small>
-          <input class="input-file" type="file" accept="image/*" multiple onchange="handleGeneratedUpload('${record ? record.id : ""}', this.files); this.value = '';" />
+          <input class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleGeneratedUpload('${record ? record.id : ""}', this.files); this.value = '';" />
         </label>
 
         <div class="upload-helper">
           <strong>Cómo debe venir el nombre:</strong> el archivo debe venir solo como <strong>SKU_VISTA</strong>, por ejemplo
-          <strong>123456789_1.jpg</strong>, <strong>123456789_01.jpg</strong> o <strong>123456789_001.jpg</strong>.
-          No debe incluir palabras adicionales antes ni después del SKU. Si un SKU fue rechazado, se mantiene asignado al mismo editor y al volver a subirlo pasa nuevamente a revisión.
+          <strong>123456789_005.jpg</strong>, <strong>123456789_006.png</strong> o <strong>123456789_07.webp</strong>.
+          No debe incluir palabras adicionales antes ni después del SKU. Formatos permitidos: JPG, JPEG, PNG, WEBP y AVIF. Máximo 10 MB por imagen y máximo 3 imágenes por SKU.
+          Si un SKU fue rechazado, se mantiene asignado al mismo editor y al volver a subirlo pasa nuevamente a revisión.
         </div>
 
         <div class="preview">${preview}</div>
@@ -2972,8 +2980,42 @@ Instrucciones:
       return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     }
 
+    function fileExtension(fileName) {
+      const match = String(fileName || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+      return match ? match[1] : "";
+    }
+
     function fileNameWithoutExtension(fileName) {
       return String(fileName || "").replace(/\.[^/.]+$/, "");
+    }
+
+    function formatFileSize(bytes) {
+      const n = Number(bytes || 0);
+      if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+      if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+      return `${n} B`;
+    }
+
+    function mimeTypeFromExtension(ext) {
+      const map = {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        webp: "image/webp",
+        avif: "image/avif"
+      };
+
+      return map[String(ext || "").toLowerCase()] || "application/octet-stream";
+    }
+
+    function isAllowedUploadFile(file) {
+      const ext = fileExtension(file.name);
+      if (!ALLOWED_UPLOAD_EXTENSIONS.includes(ext)) return false;
+
+      const type = String(file.type || "").toLowerCase();
+      if (!type) return true;
+
+      return ALLOWED_UPLOAD_MIME_TYPES.includes(type);
     }
 
     function fileNameMatchesSku(fileName, sku) {
@@ -2991,32 +3033,90 @@ Instrucciones:
       return sorted.find(record => fileNameMatchesSku(file.name, record.sku));
     }
 
+    function uploadErrorLine(title, items) {
+      if (!items.length) return "";
+      const shown = items.slice(0, 12).join("\n");
+      const more = items.length > 12 ? `\n... y ${items.length - 12} más` : "";
+      return `\n\n${title}:\n${shown}${more}`;
+    }
+
+    function uploadContentType(file) {
+      return file.type || mimeTypeFromExtension(fileExtension(file.name));
+    }
+
     async function handleGeneratedUpload(id, files) {
       if (!requireTabAccess("upload")) return;
       if (!files || !files.length) return;
 
-      try {
-        const imageFiles = [...files].filter(file => file.type.startsWith("image/"));
+      if (uploadProcessing) {
+        alert("Ya hay una subida en proceso. Espera a que termine antes de subir más imágenes.");
+        return;
+      }
 
-        if (!imageFiles.length) {
-          alert("Debes subir archivos de imagen.");
+      uploadProcessing = true;
+
+      try {
+        const incomingFiles = [...files];
+        const errors = {
+          batchLimit: [],
+          format: [],
+          size: [],
+          unmatched: [],
+          status: [],
+          ownership: [],
+          limit: []
+        };
+
+        let filesToProcess = incomingFiles;
+
+        if (incomingFiles.length > MAX_UPLOAD_FILES_PER_BATCH) {
+          filesToProcess = incomingFiles.slice(0, MAX_UPLOAD_FILES_PER_BATCH);
+          errors.batchLimit.push(`Se seleccionaron ${incomingFiles.length} archivos. Solo se procesaron los primeros ${MAX_UPLOAD_FILES_PER_BATCH}.`);
+        }
+
+        const validFiles = [];
+
+        filesToProcess.forEach(file => {
+          if (!isAllowedUploadFile(file)) {
+            errors.format.push(`${file.name} · formato no permitido`);
+            return;
+          }
+
+          if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            errors.size.push(`${file.name} · ${formatFileSize(file.size)} supera el máximo de 10 MB`);
+            return;
+          }
+
+          validFiles.push(file);
+        });
+
+        if (!validFiles.length) {
+          alert(
+            "No se pudo procesar ninguna imagen."
+            + uploadErrorLine("Formato inválido", errors.format)
+            + uploadErrorLine("Sobre 10 MB", errors.size)
+          );
           return;
         }
 
         const candidates = getUploadCandidateRecords();
-        const selectedRecord = id ? getRecord(id) : null;
         const groups = new Map();
-        const unmatched = [];
 
-        imageFiles.forEach(file => {
-          let target = findRecordForUploadedFile(file, candidates);
-
-          if (!target && selectedRecord && imageFiles.length === 1) {
-            target = selectedRecord;
-          }
+        validFiles.forEach(file => {
+          const target = findRecordForUploadedFile(file, candidates);
 
           if (!target) {
-            unmatched.push(file.name);
+            const base = fileNameWithoutExtension(file.name);
+            const possibleRecord = records.find(record => fileNameMatchesSku(file.name, record.sku));
+
+            if (possibleRecord && ![STATUS.TRABAJO, STATUS.RECHAZADO].includes(possibleRecord.estado)) {
+              errors.status.push(`${file.name} · el SKU está en estado "${possibleRecord.estado}" y no puede recibir imágenes`);
+            } else if (possibleRecord && !isAdmin() && possibleRecord.editor !== currentUser()) {
+              errors.ownership.push(`${file.name} · asignado a ${possibleRecord.editor || "otro usuario"}`);
+            } else {
+              errors.unmatched.push(`${file.name} · no coincide con ningún SKU tomado/rechazado disponible`);
+            }
+
             return;
           }
 
@@ -3024,11 +3124,35 @@ Instrucciones:
           groups.get(target.id).files.push(file);
         });
 
-        if (!groups.size) {
+        for (const group of groups.values()) {
+          const existingCount = getRecordImages(group.record).length;
+          const availableSlots = Math.max(MAX_IMAGES_PER_SKU - existingCount, 0);
+
+          if (availableSlots <= 0) {
+            group.files.forEach(file => errors.limit.push(`${file.name} · ${group.record.sku} ya tiene ${MAX_IMAGES_PER_SKU} imágenes`));
+            group.files = [];
+            continue;
+          }
+
+          if (group.files.length > availableSlots) {
+            const accepted = group.files.slice(0, availableSlots);
+            const rejected = group.files.slice(availableSlots);
+            rejected.forEach(file => errors.limit.push(`${file.name} · excede el máximo de ${MAX_IMAGES_PER_SKU} imágenes para ${group.record.sku}`));
+            group.files = accepted;
+          }
+        }
+
+        const uploadGroups = [...groups.values()].filter(group => group.files.length);
+
+        if (!uploadGroups.length) {
           alert(
-            "No se pudo asociar ninguna imagen a un SKU tomado o rechazado.\n\n" +
-            "Revisa que el nombre del archivo venga como SKU_VISTA exacto, por ejemplo 123456789_1.jpg.\n\n" +
-            unmatched.slice(0, 12).join("\n")
+            "No se pudo asociar ninguna imagen válida a un SKU tomado o rechazado."
+            + uploadErrorLine("Límite por SKU", errors.limit)
+            + uploadErrorLine("Estado no permitido", errors.status)
+            + uploadErrorLine("Usuario no asignado", errors.ownership)
+            + uploadErrorLine("Sin match", errors.unmatched)
+            + uploadErrorLine("Formato inválido", errors.format)
+            + uploadErrorLine("Sobre 10 MB", errors.size)
           );
           return;
         }
@@ -3036,7 +3160,7 @@ Instrucciones:
         let uploadedCount = 0;
         const changedRecords = [];
 
-        for (const group of groups.values()) {
+        for (const group of uploadGroups) {
           const record = group.record;
           if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
 
@@ -3046,8 +3170,9 @@ Instrucciones:
             const cleanName = safeFileName(file.name);
             const path = `${STORAGE_ROOT}/${record.id}/${imageId}_${cleanName}`;
             const ref = storageRef(storage, path);
+            const contentType = uploadContentType(file);
 
-            await uploadBytes(ref, file, { contentType: file.type });
+            await uploadBytes(ref, file, { contentType });
 
             const uploadedAt = new Date().toISOString();
             const uploadedBy = currentUser();
@@ -3057,7 +3182,7 @@ Instrucciones:
               name: file.name,
               path,
               size: file.size,
-              type: file.type,
+              type: contentType,
               matchedSku: record.sku,
               uploadedAt,
               uploadedBy
@@ -3093,16 +3218,28 @@ Instrucciones:
         selectedUploadId = "";
         await refresh();
 
-        let message = `${uploadedCount} imagen(es) subidas a revisión en ${changedRecords.length} SKU(s).`;
-        if (unmatched.length) {
-          message += `\n\nNo asociadas:\n${unmatched.slice(0, 12).join("\n")}`;
-          alert(message);
+        const hasErrors = Object.values(errors).some(list => list.length);
+        const message = `${uploadedCount} imagen(es) subidas a revisión en ${changedRecords.length} SKU(s).`;
+
+        if (hasErrors) {
+          alert(
+            message
+            + uploadErrorLine("Avisos", errors.batchLimit)
+            + uploadErrorLine("Límite por SKU", errors.limit)
+            + uploadErrorLine("Estado no permitido", errors.status)
+            + uploadErrorLine("Usuario no asignado", errors.ownership)
+            + uploadErrorLine("Sin match", errors.unmatched)
+            + uploadErrorLine("Formato inválido", errors.format)
+            + uploadErrorLine("Sobre 10 MB", errors.size)
+          );
         } else {
           toast(message);
         }
       } catch (error) {
         console.error(error);
         alert("No se pudo subir la imagen a Firebase Storage. Revisa reglas/permisos de Storage.");
+      } finally {
+        uploadProcessing = false;
       }
     }
 
@@ -3883,6 +4020,11 @@ Instrucciones:
     }
 
     async function approveAndDownload(ids) {
+      if (reviewProcessing) {
+        alert("Ya hay una aprobación o rechazo en proceso. Espera a que termine.");
+        return;
+      }
+
       const selectedRecords = ids.map(getRecord).filter(Boolean);
       const validRecords = selectedRecords.filter(record => getRecordImages(record).length);
 
@@ -3890,6 +4032,8 @@ Instrucciones:
         alert("No hay imágenes para descargar.");
         return;
       }
+
+      reviewProcessing = true;
 
       try {
         toast("Preparando descarga...");
@@ -3942,10 +4086,19 @@ Instrucciones:
       } catch (error) {
         console.error(error);
         alert("No se pudo aprobar/descargar. Revisa permisos de Storage o conexión.");
+      } finally {
+        reviewProcessing = false;
       }
     }
 
     async function rejectRecordsWithReasons(reasonById) {
+      if (reviewProcessing) {
+        alert("Ya hay una aprobación o rechazo en proceso. Espera a que termine.");
+        return;
+      }
+
+      reviewProcessing = true;
+
       try {
         const ids = Object.keys(reasonById || {});
 
@@ -3973,10 +4126,12 @@ Instrucciones:
         }
 
         await refresh();
-        toast(`${ids.length} SKU(s) rechazados. Se mantienen asignados al editor original.`);
+        toast(`${ids.length} SKU(s) rechazados. Imágenes borradas del storage.`);
       } catch (error) {
         console.error(error);
         alert("No se pudo rechazar o borrar imágenes. Revisa permisos de Storage.");
+      } finally {
+        reviewProcessing = false;
       }
     }
 
