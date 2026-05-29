@@ -732,7 +732,7 @@
     .compare-image-frame img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
       cursor: zoom-in;
     }
@@ -1157,7 +1157,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.2.5</span></h1>
+          <h1>Flujo IA <span class="version">V0.2.6</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1346,7 +1346,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.2.5";
+    const APP_VERSION = "V0.2.6";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2693,11 +2693,15 @@ Instrucciones:
         }
 
         const posHtml = pos1Url ? `
-          <img src="${escapeHtml(pos1Url)}" alt="POS1 actual" onclick="openImageModal('${encodeForInline(pos1Url)}', '${encodeForInline(record.sku + " · POS1 actual")}')">
+          <div class="compare-image-frame">
+            <img src="${escapeHtml(pos1Url)}" alt="POS1 actual" onclick="openImageModal('${encodeForInline(pos1Url)}', '${encodeForInline(record.sku + " · POS1 actual")}')">
+          </div>
         ` : `<div class="compare-empty">No se pudo armar POS1 actual</div>`;
 
         const workedHtml = workedUrl ? `
-          <img src="${escapeHtml(workedUrl)}" alt="${escapeHtml(image.name || "Imagen trabajada")}" onclick="openImageModal('${encodeForInline(workedUrl)}', '${encodeForInline(image.name || record.sku + " · imagen trabajada")}')">
+          <div class="compare-image-frame">
+            <img src="${escapeHtml(workedUrl)}" alt="${escapeHtml(image.name || "Imagen trabajada")}" onclick="openImageModal('${encodeForInline(workedUrl)}', '${encodeForInline(image.name || record.sku + " · imagen trabajada")}')">
+          </div>
         ` : `<div class="compare-empty">Imagen trabajada no disponible</div>`;
 
         pairs.push(`
