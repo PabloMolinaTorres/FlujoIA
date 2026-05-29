@@ -1358,6 +1358,44 @@
       color: #111;
     }
 
+
+    .ai-progress-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-top: 8px;
+    }
+
+    .ai-progress-track {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .ai-progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--greenFalabella), var(--greenDark));
+      transition: width .35s ease;
+    }
+
+    .ai-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .ai-progress-note {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .top-right { width: 100%; justify-content: space-between; }
@@ -1383,7 +1421,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.0.3</span></h1>
+          <h1>Flujo IA <span class="version">V1.0.4</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1554,6 +1592,27 @@
 
   <div id="toast" class="toast"></div>
 
+  <div id="aiProgressModal" class="image-modal hidden">
+    <div class="image-modal-content" style="max-width:420px;" onclick="event.stopPropagation()">
+      <div class="image-modal-title">Generando imágenes IA</div>
+
+      <div class="ai-progress-wrap">
+        <div class="ai-progress-track">
+          <div id="aiProgressBar" class="ai-progress-bar"></div>
+        </div>
+
+        <div class="ai-progress-meta">
+          <strong id="aiProgressPercent">0%</strong>
+          <span id="aiProgressText">Preparando...</span>
+        </div>
+
+        <div class="ai-progress-note">
+          Se generarán 2 opciones y luego pasarán automáticamente a revisión.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="imageModal" class="image-modal hidden" onclick="closeImageModal(event)">
     <button class="image-modal-close" onclick="closeImageModal(event)">×</button>
     <div class="image-modal-content" onclick="event.stopPropagation()">
@@ -1580,11 +1639,15 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0.3";
+    const APP_VERSION = "V1.0.4";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
     const STORAGE_ROOT = "flujo-ia/imagenes";
+
+    const IA_BACKEND_URL = "https://TU-PROYECTO.vercel.app/api/generate-image";
+    const IA_OPTIONS_COUNT = 2;
+    const IA_ALLOWED_USER = "Pablo";
 
 const firebaseConfig = {
       apiKey: "AIzaSyD4Uju0DEyYGgpAeTQi-xSbWd10wy7cfJc",
@@ -1659,6 +1722,7 @@ const firebaseConfig = {
     let userPickerAttempted = false;
     let uploadProcessing = false;
     let reviewProcessing = false;
+    let aiGenerating = false;
     const pos1Cache = {};
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -2824,6 +2888,7 @@ Instrucciones:
         <div class="actions">
           ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
+          ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">Generar por IA (2 opciones)</button>` : ""}
           ${isAdmin() ? `<button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${adminEditOpen ? "Cerrar edición" : "Editar detalles"}</button>` : ""}
         </div>
       `;
@@ -4323,6 +4388,169 @@ Instrucciones:
     }
 
 
+
+    function canGenerateAiForRecord(record) {
+      if (!record) return false;
+      if (currentUser() !== IA_ALLOWED_USER) return false;
+      if (record.estado !== STATUS.TRABAJO) return false;
+      if ((record.editor || "") !== IA_ALLOWED_USER) return false;
+      return true;
+    }
+
+    function openAiProgressModal() {
+      const modal = document.getElementById("aiProgressModal");
+      if (!modal) return;
+
+      modal.classList.remove("hidden");
+      updateAiProgress(0, "Preparando...");
+    }
+
+    function closeAiProgressModal() {
+      const modal = document.getElementById("aiProgressModal");
+      if (!modal) return;
+
+      modal.classList.add("hidden");
+    }
+
+    function updateAiProgress(percent, text) {
+      const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+      const bar = document.getElementById("aiProgressBar");
+      const label = document.getElementById("aiProgressPercent");
+      const status = document.getElementById("aiProgressText");
+
+      if (bar) bar.style.width = `${safePercent}%`;
+      if (label) label.textContent = `${safePercent}%`;
+      if (status) status.textContent = text || "Procesando...";
+    }
+
+    function base64ToFile(base64, fileName, mimeType = "image/png") {
+      const binary = atob(base64);
+      const length = binary.length;
+      const bytes = new Uint8Array(length);
+
+      for (let i = 0; i < length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      return new File([bytes], fileName, {
+        type: mimeType,
+        lastModified: Date.now()
+      });
+    }
+
+    async function callAiGeneration(record, optionNumber, iaPin) {
+      const pos1Url = buildFalabellaViewUrl(record.sku, "1");
+
+      const response = await fetch(IA_BACKEND_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          user: currentUser(),
+          adminPin: iaPin,
+          sku: record.sku,
+          prompt: record.prompt,
+          pos1Url,
+          optionNumber
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || "No se pudo generar la imagen IA.");
+      }
+
+      if (!data.base64) {
+        throw new Error("El backend no devolvió una imagen válida.");
+      }
+
+      return data;
+    }
+
+    async function generateAiOptions(id) {
+      if (!requireTabAccess("work")) return;
+
+      const record = getRecord(id);
+      if (!record) {
+        alert("No se encontró el SKU.");
+        return;
+      }
+
+      if (!canGenerateAiForRecord(record)) {
+        alert("Solo Pablo puede generar por IA, y el SKU debe estar tomado por Pablo.");
+        return;
+      }
+
+      if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
+        alert("Falta configurar IA_BACKEND_URL con la URL real de Vercel.");
+        return;
+      }
+
+      if (aiGenerating || uploadProcessing) {
+        alert("Ya hay un proceso en curso. Espera a que termine.");
+        return;
+      }
+
+      const existingImages = getRecordImages(record);
+      if (existingImages.length) {
+        alert("Este SKU ya tiene imágenes cargadas. Primero revisa o limpia ese estado antes de generar por IA.");
+        return;
+      }
+
+      const iaPin = prompt("Ingresa la clave IA para generar:");
+      if (iaPin === null) return;
+      if (!iaPin.trim()) {
+        alert("Debes ingresar la clave IA.");
+        return;
+      }
+
+      aiGenerating = true;
+      openAiProgressModal();
+
+      try {
+        updateAiProgress(5, "Validando SKU...");
+        const generatedResults = [];
+
+        for (let optionNumber = 1; optionNumber <= IA_OPTIONS_COUNT; optionNumber++) {
+          const startPercent = optionNumber === 1 ? 15 : 55;
+          const donePercent = optionNumber === 1 ? 50 : 80;
+
+          updateAiProgress(startPercent, `Generando opción ${optionNumber} de ${IA_OPTIONS_COUNT}...`);
+          const result = await callAiGeneration(record, optionNumber, iaPin);
+          generatedResults.push(result);
+          updateAiProgress(donePercent, `Opción ${optionNumber} lista.`);
+        }
+
+        updateAiProgress(88, "Preparando archivos...");
+        const files = generatedResults.map((item, index) => {
+          const fallbackName = `${record.sku}_${String(index + 5).padStart(3, "0")}.png`;
+          return base64ToFile(
+            item.base64,
+            item.fileName || fallbackName,
+            item.mimeType || "image/png"
+          );
+        });
+
+        updateAiProgress(93, "Subiendo a Firebase y enviando a revisión...");
+        await handleGeneratedUpload(id, files);
+
+        updateAiProgress(100, "Listo. Las 2 imágenes pasaron a revisión.");
+        toast(`Se generaron ${files.length} imágenes IA para ${record.sku}.`);
+
+        setTimeout(() => {
+          closeAiProgressModal();
+        }, 900);
+      } catch (error) {
+        console.error(error);
+        closeAiProgressModal();
+        alert(error.message || "No se pudo completar la generación IA.");
+      } finally {
+        aiGenerating = false;
+      }
+    }
+
     function openImageModal(encodedUrl, encodedTitle) {
       const modal = document.getElementById("imageModal");
       const img = document.getElementById("imageModalImg");
@@ -4376,7 +4604,8 @@ Instrucciones:
       toggleNotificationsPanel,
       markNotificationsRead,
       openImageModal,
-      closeImageModal
+      closeImageModal,
+      generateAiOptions
     });
   </script>
 </body>
