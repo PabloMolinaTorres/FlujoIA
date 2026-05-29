@@ -720,24 +720,33 @@
       white-space: nowrap;
     }
 
-    .compare-box img {
+    .compare-image-frame {
       width: 100%;
-      height: 390px;
-      object-fit: contain;
+      aspect-ratio: 1 / 1;
+      background: var(--card2);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    .compare-image-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       display: block;
-      background: white;
       cursor: zoom-in;
     }
 
     .compare-empty {
-      min-height: 390px;
+      width: 100%;
+      aspect-ratio: 1 / 1;
       display: grid;
       place-items: center;
       text-align: center;
       color: var(--muted);
       font-weight: 900;
       padding: 20px;
-      background: var(--card);
+      background: var(--card2);
     }
 
     .image-modal {
@@ -864,6 +873,133 @@
       color: var(--muted);
       font-size: 12px;
       line-height: 1.35;
+    }
+
+
+    .panel-title-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .admin-assign {
+      display: grid;
+      gap: 6px;
+      min-width: 165px;
+    }
+
+    .admin-assign select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 9px;
+      outline: none;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .metrics-panel {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .metric-card {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .metric-card small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 5px;
+    }
+
+    .metric-card strong {
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .metrics-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .metrics-title h3 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .bar-list {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 130px 1fr 48px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .bar-track {
+      height: 16px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--greenFalabella);
+      border-radius: 999px;
+    }
+
+    .metrics-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 520px;
+    }
+
+    .metrics-table th,
+    .metrics-table td {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .metrics-table th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: var(--card2);
     }
 
 
@@ -1003,8 +1139,9 @@
       .top-right { width: 100%; justify-content: space-between; }
       .layout, .review-card, .compare-pair { grid-template-columns: 1fr; }
       .review-side { position: static; }
-      .compare-box img, .compare-empty { height: 280px; min-height: 280px; }
-      .stats { grid-template-columns: repeat(2, 1fr); }
+      .compare-image-frame, .compare-empty { min-height: 0; }
+      .stats, .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .bar-row { grid-template-columns: 90px 1fr 42px; }
       .bulk-bar { grid-template-columns: 1fr; }
       .manual-grid { grid-template-columns: 1fr; }
       .manual-grid .wide { grid-column: span 1; }
@@ -1020,8 +1157,8 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.2.2</span></h1>
-          <small>Falabella Chile · Flujo sincronizado con Firebase</small>
+          <h1>Flujo IA <span class="version">V0.2.3</span></h1>
+          <small>Falabella Chile</small>
         </div>
       </div>
 
@@ -1169,9 +1306,13 @@
       <div class="master-panel">
         <div class="panel-title">
           <span>Master de registro</span>
-          <span id="masterCount" class="pill status"></span>
+          <div class="panel-title-actions">
+            <button id="metricsBtn" class="btn btn-soft btn-small hidden" onclick="toggleMetricsPanel()">Métricas</button>
+            <span id="masterCount" class="pill status"></span>
+          </div>
         </div>
 
+        <div id="metricsPanel" class="metrics-panel hidden"></div>
         <div id="masterTable"></div>
       </div>
     </section>
@@ -1205,7 +1346,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.2.2";
+    const APP_VERSION = "V0.2.3";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1333,7 +1474,11 @@ const firebaseConfig = {
 
     function migrateRecord(record) {
       if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+      if (!Array.isArray(record.uploadEvents)) record.uploadEvents = [];
       if (!record.version) record.version = 1;
+      if (record.rejectionCount === undefined || record.rejectionCount === null) {
+        record.rejectionCount = Math.max(Number(record.version || 1) - 1, 0);
+      }
       if (!record.prompt) record.prompt = buildPrompt(record);
       if (!record.estado) record.estado = STATUS.PENDIENTE;
       if (!record.lastImageNames) record.lastImageNames = "";
@@ -1777,6 +1922,8 @@ Instrucciones:
         revisor: "",
         motivoRechazo: "",
         version: 1,
+        rejectionCount: 0,
+        uploadEvents: [],
         generatedImages: [],
         generatedImageId: "",
         generatedImageName: "",
@@ -2111,7 +2258,7 @@ Instrucciones:
 
         <div class="info-grid">
           <div class="info-box"><small>Prioridad</small><span>${priorityLabel(record.prioridad)}</span></div>
-          <div class="info-box"><small>Versión</small><span>V${escapeHtml(record.version)}</span></div>
+          <div class="info-box"><small>Veces rechazadas</small><span>${escapeHtml(getRejectionCount(record))}</span></div>
           <div class="info-box"><small>Editor asignado</small><span>${escapeHtml(record.editor || "Sin asignar")}</span></div>
           <div class="info-box"><small>Medidas</small><span>${escapeHtml(record.medidas || "No indicado")}</span></div>
           <div class="info-box" style="grid-column:1/-1;"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
@@ -2330,6 +2477,9 @@ Instrucciones:
 
             await uploadBytes(ref, file, { contentType: file.type });
 
+            const uploadedAt = new Date().toISOString();
+            const uploadedBy = currentUser();
+
             record.generatedImages.push({
               id: imageId,
               name: file.name,
@@ -2337,8 +2487,19 @@ Instrucciones:
               size: file.size,
               type: file.type,
               matchedSku: record.sku,
-              uploadedAt: new Date().toISOString(),
-              uploadedBy: currentUser()
+              uploadedAt,
+              uploadedBy
+            });
+
+            if (!Array.isArray(record.uploadEvents)) record.uploadEvents = [];
+            record.uploadEvents.push({
+              id: imageId,
+              name: file.name,
+              sku: record.sku,
+              editor: record.editor || uploadedBy,
+              uploadedBy,
+              uploadedAt,
+              size: file.size
             });
 
             uploadedCount++;
@@ -2437,18 +2598,32 @@ Instrucciones:
       return output;
     }
 
+    function sortMediaItems(items) {
+      return [...items].sort((a, b) => {
+        const pa = Number.isFinite(Number(a.position)) ? Number(a.position) : 9999;
+        const pb = Number.isFinite(Number(b.position)) ? Number(b.position) : 9999;
+        if (pa !== pb) return pa - pb;
+        return String(a.url).localeCompare(String(b.url));
+      });
+    }
+
+    async function getMediaItemsBySku(sku) {
+      const response = await fetch(endpointBySku(sku), { cache: "no-store" });
+      if (!response.ok) throw new Error(`Error JSON ${response.status}`);
+
+      const json = await response.json();
+      return sortMediaItems(uniqueMediaItems(extractMediaItems(json)));
+    }
+
     async function getPos1Url(record) {
       if (!record || !record.sku) return "";
       if (Object.prototype.hasOwnProperty.call(pos1Cache, record.sku)) return pos1Cache[record.sku];
 
       try {
-        const response = await fetch(endpointBySku(record.sku), { cache: "no-store" });
-        if (!response.ok) throw new Error(`Error JSON ${response.status}`);
-
-        const json = await response.json();
-        const items = uniqueMediaItems(extractMediaItems(json));
+        const items = await getMediaItemsBySku(record.sku);
         const pos1 = items.find(item => Number(item.position) === 1) ||
-          items.find(item => /_0?1\/public/i.test(item.url)) ||
+          items.find(item => /_0?1(?:\/|$)/i.test(item.url.replace("/public", ""))) ||
+          items.find(item => Number(item.position) === 0) ||
           items[0];
 
         const url = pos1 ? addFalabellaImageSize(pos1.url) : "";
@@ -2534,7 +2709,7 @@ Instrucciones:
               <div class="review-meta">
                 Marca: ${escapeHtml(record.marca || "Sin marca")}<br>
                 Editor: ${escapeHtml(record.editor || "Sin editor")}<br>
-                Versión: V${escapeHtml(record.version)}<br>
+                Veces rechazadas: ${escapeHtml(getRejectionCount(record))}<br>
                 Subido: ${formatDate(record.uploadedAt) || "-"}
               </div>
 
@@ -2557,12 +2732,72 @@ Instrucciones:
       el.innerHTML = htmlParts.join("");
     }
 
+    function getRejectionCount(record) {
+      return Math.max(Number(record?.rejectionCount ?? (Number(record?.version || 1) - 1) ?? 0), 0);
+    }
+
+    function assignmentOptions(selectedEditor = "") {
+      const retouchers = Object.keys(USER_ROLES).filter(user => USER_ROLES[user] === ROLES.RETOCADOR);
+      const unique = [...new Set(retouchers)].sort((a, b) => a.localeCompare(b, "es"));
+
+      return `
+        <option value="">Sin asignar</option>
+        ${unique.map(user => `<option value="${escapeHtml(user)}" ${user === selectedEditor ? "selected" : ""}>${escapeHtml(user)}</option>`).join("")}
+      `;
+    }
+
+    async function adminSetEditor(id, editor) {
+      if (!requireAdmin()) return;
+
+      const record = getRecord(id);
+      if (!record) return;
+
+      const previousEditor = record.editor || "";
+      const newEditor = String(editor || "").trim();
+
+      if (newEditor && USER_ROLES[newEditor] !== ROLES.RETOCADOR) {
+        alert("Solo puedes asignar SKUs a usuarios con rol Retocador.");
+        refresh();
+        return;
+      }
+
+      record.editor = newEditor;
+      record.updatedAt = new Date().toISOString();
+
+      if (newEditor) {
+        if (record.estado === STATUS.PENDIENTE || record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO) {
+          record.estado = STATUS.TRABAJO;
+          record.takenAt = new Date().toISOString();
+        }
+
+        if (previousEditor !== newEditor) {
+          toast(`SKU ${record.sku} asignado a ${newEditor}.`);
+        }
+      } else {
+        record.takenAt = "";
+
+        if (record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO) {
+          record.estado = STATUS.PENDIENTE;
+          record.motivoRechazo = "";
+        }
+
+        toast(`SKU ${record.sku} quedó sin asignación.`);
+      }
+
+      await saveRecord(record);
+      await refresh();
+    }
+
     function renderMasterTable() {
       const el = document.getElementById("masterTable");
       const masterCount = document.getElementById("masterCount");
+      const metricsBtn = document.getElementById("metricsBtn");
       if (!el || !masterCount) return;
 
       masterCount.textContent = records.length;
+
+      if (metricsBtn) metricsBtn.classList.toggle("hidden", !isAdmin());
+      renderMetricsPanel();
 
       if (!records.length) {
         el.innerHTML = `<div class="empty">Aún no hay registros en el master.</div>`;
@@ -2572,6 +2807,14 @@ Instrucciones:
       const rows = sortByPriority(records).map(record => {
         const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
         const imageNames = activeImageNames || record.lastImageNames || "-";
+        const adminAssignment = isAdmin() ? `
+          <div class="admin-assign">
+            <select onchange="adminSetEditor('${record.id}', this.value)">
+              ${assignmentOptions(record.editor || "")}
+            </select>
+            <div class="master-muted">Admin: reasignar o quitar</div>
+          </div>
+        ` : "";
 
         return `
           <tr>
@@ -2584,12 +2827,13 @@ Instrucciones:
             <td>
               <div>${escapeHtml(record.editor || "-")}</div>
               <div class="master-muted">${record.takenAt ? "Tomado: " + formatDate(record.takenAt) : ""}</div>
+              ${adminAssignment}
             </td>
             <td>
               <div>${escapeHtml(record.revisor || "-")}</div>
               <div class="master-muted">${record.reviewedAt ? "Revisado: " + formatDate(record.reviewedAt) : ""}</div>
             </td>
-            <td>V${escapeHtml(record.version || 1)}</td>
+            <td><strong>${escapeHtml(getRejectionCount(record))}</strong></td>
             <td>
               <div>${escapeHtml(record.medidas || "-")}</div>
               ${record.comentario ? `<div class="master-muted">${escapeHtml(record.comentario)}</div>` : ""}
@@ -2616,9 +2860,9 @@ Instrucciones:
                 <th>SKU / Marca</th>
                 <th>Prioridad</th>
                 <th>Estado</th>
-                <th>Editor</th>
+                <th>Editor / Asignación</th>
                 <th>Revisor</th>
-                <th>Versión</th>
+                <th># veces rechazadas</th>
                 <th>Info</th>
                 <th>Imagen</th>
                 <th>Motivo rechazo</th>
@@ -2626,6 +2870,154 @@ Instrucciones:
               </tr>
             </thead>
             <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function toggleMetricsPanel() {
+      if (!requireAdmin()) return;
+      const panel = document.getElementById("metricsPanel");
+      if (!panel) return;
+
+      panel.classList.toggle("hidden");
+      renderMetricsPanel();
+    }
+
+    function startOfWeek(date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff);
+      return d;
+    }
+
+    function startOfMonth(date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(1);
+      return d;
+    }
+
+    function getUploadEvents(record) {
+      if (Array.isArray(record.uploadEvents) && record.uploadEvents.length) return record.uploadEvents;
+
+      return getRecordImages(record).map(image => ({
+        id: image.id || uid(),
+        name: image.name || "",
+        sku: record.sku,
+        editor: record.editor || image.uploadedBy || "Sin editor",
+        uploadedBy: image.uploadedBy || record.editor || "Sin editor",
+        uploadedAt: image.uploadedAt || record.uploadedAt || record.updatedAt || record.createdAt,
+        size: image.size || 0
+      }));
+    }
+
+    function calculateMetrics() {
+      const now = new Date();
+      const weekStart = startOfWeek(now);
+      const monthStart = startOfMonth(now);
+      const users = [...new Set(Object.keys(USER_ROLES).filter(user => USER_ROLES[user] === ROLES.RETOCADOR))].sort((a, b) => a.localeCompare(b, "es"));
+      const byUser = {};
+
+      users.forEach(user => {
+        byUser[user] = { week: 0, month: 0, total: 0 };
+      });
+
+      records.forEach(record => {
+        getUploadEvents(record).forEach(event => {
+          const user = event.editor || event.uploadedBy || record.editor || "Sin editor";
+          if (!byUser[user]) byUser[user] = { week: 0, month: 0, total: 0 };
+
+          const eventDate = new Date(event.uploadedAt || record.uploadedAt || record.updatedAt || record.createdAt || Date.now());
+          if (Number.isNaN(eventDate.getTime())) return;
+
+          byUser[user].total += 1;
+          if (eventDate >= weekStart) byUser[user].week += 1;
+          if (eventDate >= monthStart) byUser[user].month += 1;
+        });
+      });
+
+      return { byUser, weekStart, monthStart };
+    }
+
+    function renderBarChart(rows, key) {
+      const max = Math.max(...rows.map(row => row[key]), 1);
+
+      return `
+        <div class="bar-list">
+          ${rows.map(row => `
+            <div class="bar-row">
+              <div>${escapeHtml(row.user)}</div>
+              <div class="bar-track"><div class="bar-fill" style="width:${Math.round((row[key] / max) * 100)}%"></div></div>
+              <div>${row[key]}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderMetricsPanel() {
+      const panel = document.getElementById("metricsPanel");
+      if (!panel) return;
+
+      if (!isAdmin()) {
+        panel.classList.add("hidden");
+        panel.innerHTML = "";
+        return;
+      }
+
+      if (panel.classList.contains("hidden")) return;
+
+      const { byUser, weekStart, monthStart } = calculateMetrics();
+      const rows = Object.keys(byUser).map(user => ({ user, ...byUser[user] }))
+        .sort((a, b) => b.week - a.week || b.month - a.month || a.user.localeCompare(b.user, "es"));
+      const totalWeek = rows.reduce((sum, row) => sum + row.week, 0);
+      const totalMonth = rows.reduce((sum, row) => sum + row.month, 0);
+      const totalAll = rows.reduce((sum, row) => sum + row.total, 0);
+
+      panel.innerHTML = `
+        <div class="metrics-title">
+          <div>
+            <h3>Métricas de producción</h3>
+            <div class="master-muted">Cuenta cada imagen/vista subida por retocador. Semana desde ${formatDate(weekStart.toISOString()).split(" ")[0]} · Mes desde ${formatDate(monthStart.toISOString()).split(" ")[0]}</div>
+          </div>
+          <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar métricas</button>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card"><small>Fotos esta semana</small><strong>${totalWeek}</strong></div>
+          <div class="metric-card"><small>Fotos este mes</small><strong>${totalMonth}</strong></div>
+          <div class="metric-card"><small>Fotos registradas</small><strong>${totalAll}</strong></div>
+        </div>
+
+        <div class="metrics-title"><h3>Comparativo semanal</h3></div>
+        ${renderBarChart(rows, "week")}
+
+        <div class="metrics-title"><h3>Comparativo mensual</h3></div>
+        ${renderBarChart(rows, "month")}
+
+        <div class="master-table-wrap">
+          <table class="metrics-table">
+            <thead>
+              <tr>
+                <th>Retocador</th>
+                <th>Semana</th>
+                <th>Mes</th>
+                <th>Total registrado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(row => `
+                <tr>
+                  <td><strong>${escapeHtml(row.user)}</strong></td>
+                  <td>${row.week}</td>
+                  <td>${row.month}</td>
+                  <td>${row.total}</td>
+                </tr>
+              `).join("")}
+            </tbody>
           </table>
         </div>
       `;
@@ -2785,6 +3177,7 @@ Instrucciones:
           record.revisor = currentUser();
           record.motivoRechazo = reasonById[id];
           record.version = Number(record.version || 1) + 1;
+          record.rejectionCount = getRejectionCount(record) + 1;
           record.lastImageNames = imageNames;
           record.generatedImages = [];
           record.generatedImageId = "";
@@ -2872,18 +3265,13 @@ Instrucciones:
       if (!record) return;
 
       try {
-        toast("Buscando imágenes...");
+        toast("Buscando imágenes en JSON...");
 
-        const endpoint = endpointBySku(record.sku);
-        const response = await fetch(endpoint, { cache: "no-store" });
-
-        if (!response.ok) throw new Error(`Error JSON ${response.status}`);
-
-        const json = await response.json();
-        const urls = uniqueUrls(extractMediaUrls(json));
+        const mediaItems = await getMediaItemsBySku(record.sku);
+        const urls = mediaItems.map(item => addFalabellaImageSize(item.url));
 
         if (!urls.length) {
-          alert("No se encontraron imágenes para este SKU.");
+          alert("No se encontraron imágenes para este SKU en el JSON.");
           return;
         }
 
@@ -2900,13 +3288,13 @@ Instrucciones:
             const fileName = imageFileName(urls[i], i, record.sku);
             folder.file(fileName, blob);
             downloaded++;
-          } catch {
-            // Si una imagen falla, continúa con las demás.
+          } catch (error) {
+            console.warn("No se pudo descargar imagen:", urls[i], error);
           }
         }
 
         if (!downloaded) {
-          alert("Se encontraron URLs, pero no se pudo descargar ninguna imagen.");
+          alert("El JSON entregó URLs, pero no se pudo descargar ninguna imagen. Puede ser CORS o bloqueo del CDN.");
           return;
         }
 
@@ -2916,7 +3304,7 @@ Instrucciones:
         toast(`Descarga lista: ${downloaded} imagen(es).`);
       } catch (error) {
         console.error(error);
-        alert("No se pudo descargar las imágenes. Puede ser problema del SKU, JSON, CORS o red.");
+        alert("No se pudo leer el JSON del visualizador. Revisa que el SKU exista o que el endpoint esté disponible.");
       }
     }
 
@@ -3027,6 +3415,8 @@ Instrucciones:
       approveSelected,
       rejectSelected,
       toggleSelectAllReviews,
+      adminSetEditor,
+      toggleMetricsPanel,
       openImageModal,
       closeImageModal
     });
