@@ -1157,7 +1157,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.2.3</span></h1>
+          <h1>Flujo IA <span class="version">V0.2.4</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1346,7 +1346,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.2.3";
+    const APP_VERSION = "V0.2.4";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1482,6 +1482,19 @@ const firebaseConfig = {
       if (!record.prompt) record.prompt = buildPrompt(record);
       if (!record.estado) record.estado = STATUS.PENDIENTE;
       if (!record.lastImageNames) record.lastImageNames = "";
+
+      if (!record.editor && [STATUS.TRABAJO, STATUS.REVISION, STATUS.RECHAZADO].includes(record.estado)) {
+        const possibleSources = [
+          ...record.uploadEvents,
+          ...record.generatedImages
+        ]
+          .filter(item => item && (item.editor || item.uploadedBy))
+          .sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0));
+
+        const inferredEditor = possibleSources[0]?.editor || possibleSources[0]?.uploadedBy || "";
+        if (inferredEditor && inferredEditor !== "Sin editor") record.editor = inferredEditor;
+      }
+
       return record;
     }
 
@@ -1695,6 +1708,25 @@ const firebaseConfig = {
 
     function endpointBySku(sku) {
       return `https://sellercenter.falabella-marketplace.services/media-service/v1/reference/${encodeURIComponent(sku)}?businessUnit=${BUSINESS_UNIT}&country=${PAIS}`;
+    }
+
+    function buildFalabellaViewUrl(sku, view = "1") {
+      const cleanSku = String(sku || "").trim();
+      const cleanView = String(view || "1").replace(/^_+/, "").trim() || "1";
+      if (!cleanSku) return "";
+      return `https://media.falabella.com/falabellaCL/${encodeURIComponent(cleanSku)}_${encodeURIComponent(cleanView)}/w=1500,h=1500,fit=pad`;
+    }
+
+    function buildDirectMediaItems(sku, maxViews = 12) {
+      const total = Math.max(Number(maxViews || 12), 1);
+      return Array.from({ length: total }, (_, index) => {
+        const view = String(index + 1);
+        return {
+          url: buildFalabellaViewUrl(sku, view),
+          position: index + 1,
+          direct: true
+        };
+      });
     }
 
     function buildPrompt(record) {
@@ -2344,8 +2376,8 @@ Instrucciones:
       const available = getUploadCandidateRecords().length;
       const selectedTitle = record ? `Subida para ${escapeHtml(record.sku)}` : "Subida inteligente por nombre de archivo";
       const selectedText = record
-        ? `Puedes subir una imagen de este SKU o arrastrar varias. Si los nombres contienen otros SKU asignados, se distribuirán automáticamente.`
-        : `Arrastra varias imágenes y el sistema buscará el SKU dentro del nombre del archivo para enviarlas a revisión.`;
+        ? `Puedes subir una o varias imágenes de este SKU. El nombre debe venir como SKU_VISTA para poder asociarlo correctamente.`
+        : `Arrastra varias imágenes y el sistema buscará nombres exactos con formato SKU_VISTA para enviarlas a revisión.`;
       const preview = record ? await getPreviewHtml(record) : `<span>Selecciona un SKU de la lista para ver su última subida, o carga imágenes masivas directamente aquí.</span>`;
 
       el.innerHTML = `
@@ -2369,9 +2401,9 @@ Instrucciones:
         </label>
 
         <div class="upload-helper">
-          <strong>Cómo debe venir el nombre:</strong> el archivo debe contener el SKU, por ejemplo
-          <strong>123456789_1.jpg</strong>, <strong>123456789.png</strong> o <strong>ambientado_123456789.jpg</strong>.
-          Si un SKU fue rechazado, se mantiene asignado al mismo editor y al volver a subirlo pasa nuevamente a revisión.
+          <strong>Cómo debe venir el nombre:</strong> el archivo debe venir solo como <strong>SKU_VISTA</strong>, por ejemplo
+          <strong>123456789_1.jpg</strong>, <strong>123456789_01.jpg</strong> o <strong>123456789_001.jpg</strong>.
+          No debe incluir palabras adicionales antes ni después del SKU. Si un SKU fue rechazado, se mantiene asignado al mismo editor y al volver a subirlo pasa nuevamente a revisión.
         </div>
 
         <div class="preview">${preview}</div>
@@ -2407,10 +2439,9 @@ Instrucciones:
       const base = normalizeText(fileNameWithoutExtension(fileName));
       const normalizedSku = normalizeText(sku);
       if (!base || !normalizedSku) return false;
-      if (base === normalizedSku) return true;
 
       const escapedSku = escapeRegExp(normalizedSku);
-      const pattern = new RegExp(`(^|[^a-z0-9])${escapedSku}($|[^a-z0-9])`);
+      const pattern = new RegExp(`^${escapedSku}_[0-9]{1,3}$`);
       return pattern.test(base);
     }
 
@@ -2455,7 +2486,7 @@ Instrucciones:
         if (!groups.size) {
           alert(
             "No se pudo asociar ninguna imagen a un SKU tomado o rechazado.\n\n" +
-            "Revisa que el nombre del archivo contenga el SKU exacto.\n\n" +
+            "Revisa que el nombre del archivo venga como SKU_VISTA exacto, por ejemplo 123456789_1.jpg.\n\n" +
             unmatched.slice(0, 12).join("\n")
           );
           return;
@@ -2619,21 +2650,11 @@ Instrucciones:
       if (!record || !record.sku) return "";
       if (Object.prototype.hasOwnProperty.call(pos1Cache, record.sku)) return pos1Cache[record.sku];
 
-      try {
-        const items = await getMediaItemsBySku(record.sku);
-        const pos1 = items.find(item => Number(item.position) === 1) ||
-          items.find(item => /_0?1(?:\/|$)/i.test(item.url.replace("/public", ""))) ||
-          items.find(item => Number(item.position) === 0) ||
-          items[0];
-
-        const url = pos1 ? addFalabellaImageSize(pos1.url) : "";
-        pos1Cache[record.sku] = url;
-        return url;
-      } catch (error) {
-        console.warn("No se pudo obtener POS1:", record.sku, error);
-        pos1Cache[record.sku] = "";
-        return "";
-      }
+      // Para la revisión no consultamos el JSON, porque el endpoint puede bloquear CORS.
+      // POS1 se arma directo con la lógica Falabella: SKU_1.
+      const url = buildFalabellaViewUrl(record.sku, "1");
+      pos1Cache[record.sku] = url;
+      return url;
     }
 
     async function getReviewComparisonHtml(record) {
@@ -2657,7 +2678,7 @@ Instrucciones:
 
         const posHtml = pos1Url ? `
           <img src="${escapeHtml(pos1Url)}" alt="POS1 actual" onclick="openImageModal('${encodeForInline(pos1Url)}', '${encodeForInline(record.sku + " · POS1 actual")}')">
-        ` : `<div class="compare-empty">No se pudo cargar POS1 actual desde JSON</div>`;
+        ` : `<div class="compare-empty">No se pudo armar POS1 actual</div>`;
 
         const workedHtml = workedUrl ? `
           <img src="${escapeHtml(workedUrl)}" alt="${escapeHtml(image.name || "Imagen trabajada")}" onclick="openImageModal('${encodeForInline(workedUrl)}', '${encodeForInline(image.name || record.sku + " · imagen trabajada")}')">
@@ -2666,7 +2687,7 @@ Instrucciones:
         pairs.push(`
           <div class="compare-pair">
             <div class="compare-box">
-              <div class="compare-title">Actual JSON <span>POS1</span></div>
+              <div class="compare-title">Actual POS1 <span>SKU_1</span></div>
               ${posHtml}
             </div>
             <div class="compare-box">
@@ -2737,12 +2758,22 @@ Instrucciones:
     }
 
     function assignmentOptions(selectedEditor = "") {
-      const retouchers = Object.keys(USER_ROLES).filter(user => USER_ROLES[user] === ROLES.RETOCADOR);
-      const unique = [...new Set(retouchers)].sort((a, b) => a.localeCompare(b, "es"));
+      const assignable = Object.keys(USER_ROLES).filter(user =>
+        USER_ROLES[user] === ROLES.RETOCADOR || USER_ROLES[user] === ROLES.ADMIN
+      );
+
+      if (selectedEditor && !assignable.includes(selectedEditor)) {
+        assignable.push(selectedEditor);
+      }
+
+      const unique = [...new Set(assignable)].sort((a, b) => a.localeCompare(b, "es"));
 
       return `
         <option value="">Sin asignar</option>
-        ${unique.map(user => `<option value="${escapeHtml(user)}" ${user === selectedEditor ? "selected" : ""}>${escapeHtml(user)}</option>`).join("")}
+        ${unique.map(user => {
+          const label = ROLE_LABELS[USER_ROLES[user]] ? `${user} · ${ROLE_LABELS[USER_ROLES[user]]}` : user;
+          return `<option value="${escapeHtml(user)}" ${user === selectedEditor ? "selected" : ""}>${escapeHtml(label)}</option>`;
+        }).join("")}
       `;
     }
 
@@ -2755,8 +2786,8 @@ Instrucciones:
       const previousEditor = record.editor || "";
       const newEditor = String(editor || "").trim();
 
-      if (newEditor && USER_ROLES[newEditor] !== ROLES.RETOCADOR) {
-        alert("Solo puedes asignar SKUs a usuarios con rol Retocador.");
+      if (newEditor && USER_ROLES[newEditor] !== ROLES.RETOCADOR && USER_ROLES[newEditor] !== ROLES.ADMIN) {
+        alert("Solo puedes asignar SKUs a usuarios con rol Retocador o Admin.");
         refresh();
         return;
       }
@@ -2765,11 +2796,16 @@ Instrucciones:
       record.updatedAt = new Date().toISOString();
 
       if (newEditor) {
-        if (record.estado === STATUS.PENDIENTE || record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO) {
+        if (record.estado === STATUS.PENDIENTE) {
           record.estado = STATUS.TRABAJO;
           record.takenAt = new Date().toISOString();
         }
 
+        if (record.estado === STATUS.TRABAJO && !record.takenAt) {
+          record.takenAt = new Date().toISOString();
+        }
+
+        // Si el SKU está rechazado, se mantiene como rechazado para que el editor vea el motivo.
         if (previousEditor !== newEditor) {
           toast(`SKU ${record.sku} asignado a ${newEditor}.`);
         }
@@ -2778,7 +2814,6 @@ Instrucciones:
 
         if (record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO) {
           record.estado = STATUS.PENDIENTE;
-          record.motivoRechazo = "";
         }
 
         toast(`SKU ${record.sku} quedó sin asignación.`);
@@ -3265,13 +3300,22 @@ Instrucciones:
       if (!record) return;
 
       try {
-        toast("Buscando imágenes en JSON...");
+        toast("Buscando imágenes...");
 
-        const mediaItems = await getMediaItemsBySku(record.sku);
-        const urls = mediaItems.map(item => addFalabellaImageSize(item.url));
+        let mediaItems = [];
+        try {
+          mediaItems = await getMediaItemsBySku(record.sku);
+        } catch (error) {
+          console.warn("No se pudo leer JSON. Se usará búsqueda directa por vistas SKU_1 a SKU_12:", error);
+          mediaItems = buildDirectMediaItems(record.sku, 12);
+        }
+
+        const urls = mediaItems
+          .map(item => item.direct ? item.url : addFalabellaImageSize(item.url))
+          .filter(Boolean);
 
         if (!urls.length) {
-          alert("No se encontraron imágenes para este SKU en el JSON.");
+          alert("No se encontraron imágenes para este SKU.");
           return;
         }
 
@@ -3294,7 +3338,7 @@ Instrucciones:
         }
 
         if (!downloaded) {
-          alert("El JSON entregó URLs, pero no se pudo descargar ninguna imagen. Puede ser CORS o bloqueo del CDN.");
+          alert("No se pudo descargar ninguna imagen. Puede ser bloqueo del CDN, CORS o que las vistas directas no existan.");
           return;
         }
 
@@ -3304,7 +3348,7 @@ Instrucciones:
         toast(`Descarga lista: ${downloaded} imagen(es).`);
       } catch (error) {
         console.error(error);
-        alert("No se pudo leer el JSON del visualizador. Revisa que el SKU exista o que el endpoint esté disponible.");
+        alert("No se pudo descargar las imágenes. Revisa que el SKU exista o que el CDN permita la descarga.");
       }
     }
 
