@@ -596,23 +596,46 @@
       line-height: 1.25;
     }
 
+    .upload-helper {
+      margin-top: 12px;
+      background: rgba(59, 130, 246, .08);
+      border: 1px solid rgba(59, 130, 246, .20);
+      border-radius: 14px;
+      padding: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .upload-helper strong {
+      color: var(--text);
+    }
+
     .review-card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 16px;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       display: grid;
-      grid-template-columns: 1fr 430px;
+      grid-template-columns: 310px 1fr;
       gap: 16px;
+      align-items: start;
+    }
+
+    .review-side {
+      position: sticky;
+      top: 96px;
+      display: grid;
+      gap: 12px;
+      align-self: start;
     }
 
     .review-top {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 8px;
       flex-wrap: wrap;
     }
 
@@ -620,6 +643,154 @@
       width: 18px;
       height: 18px;
       accent-color: var(--greenFalabella);
+    }
+
+    .review-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .reject-box {
+      display: grid;
+      gap: 7px;
+    }
+
+    .reject-box label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .reject-box textarea {
+      width: 100%;
+      min-height: 108px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+      line-height: 1.35;
+    }
+
+    .review-visual-area {
+      min-width: 0;
+    }
+
+    .compare-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .compare-box {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .compare-title {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .compare-title span {
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 900;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .compare-box img {
+      width: 100%;
+      height: 390px;
+      object-fit: contain;
+      display: block;
+      background: white;
+      cursor: zoom-in;
+    }
+
+    .compare-empty {
+      min-height: 390px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 900;
+      padding: 20px;
+      background: var(--card);
+    }
+
+    .image-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, .82);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .image-modal-content {
+      width: min(96vw, 1320px);
+      height: min(92vh, 900px);
+      background: #111;
+      border-radius: 18px;
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 10px;
+    }
+
+    .image-modal-title {
+      color: white;
+      font-weight: 900;
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    .image-modal-content img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: white;
+      border-radius: 12px;
+      min-height: 0;
+    }
+
+    .image-modal-close {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 0;
+      background: white;
+      color: #111;
+      font-size: 28px;
+      font-weight: 900;
+      cursor: pointer;
+      z-index: 101;
     }
 
     .bulk-bar {
@@ -830,7 +1001,9 @@
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .top-right { width: 100%; justify-content: space-between; }
-      .layout, .review-card { grid-template-columns: 1fr; }
+      .layout, .review-card, .compare-pair { grid-template-columns: 1fr; }
+      .review-side { position: static; }
+      .compare-box img, .compare-empty { height: 280px; min-height: 280px; }
       .stats { grid-template-columns: repeat(2, 1fr); }
       .bulk-bar { grid-template-columns: 1fr; }
       .manual-grid { grid-template-columns: 1fr; }
@@ -847,7 +1020,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V0.2.1</span></h1>
+          <h1>Flujo IA <span class="version">V0.2.2</span></h1>
           <small>Falabella Chile · Flujo sincronizado con Firebase</small>
         </div>
       </div>
@@ -983,7 +1156,8 @@
 
     <section id="view-review" class="view">
       <div class="bulk-bar">
-        <input id="bulkReason" placeholder="Motivo para rechazo múltiple" />
+        <input id="bulkReason" placeholder="Motivo de rechazo múltiple opcional. Si queda vacío, usa el motivo escrito en cada tarjeta." />
+        <button class="btn btn-soft" onclick="toggleSelectAllReviews()">Seleccionar / limpiar todos</button>
         <button class="btn btn-primary" onclick="approveSelected()">Aprobar y descargar seleccionados</button>
         <button class="btn btn-red" onclick="rejectSelected()">Rechazar seleccionados</button>
       </div>
@@ -1005,6 +1179,14 @@
 
   <div id="toast" class="toast"></div>
 
+  <div id="imageModal" class="image-modal hidden" onclick="closeImageModal(event)">
+    <button class="image-modal-close" onclick="closeImageModal(event)">×</button>
+    <div class="image-modal-content" onclick="event.stopPropagation()">
+      <div id="imageModalTitle" class="image-modal-title"></div>
+      <img id="imageModalImg" src="" alt="Vista ampliada" />
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
@@ -1023,7 +1205,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V0.2.1";
+    const APP_VERSION = "V0.2.2";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1092,6 +1274,7 @@ const firebaseConfig = {
     let selectedUploadId = "";
     let unsubscribeRecords = null;
     let userPickerAttempted = false;
+    const pos1Cache = {};
 
     document.addEventListener("DOMContentLoaded", async () => {
       loadTheme();
@@ -1845,13 +2028,15 @@ Instrucciones:
     }
 
     function renderSkuItem(record, selectedId, onClickName) {
+      const editorText = record.editor ? ` · Editor: ${record.editor}` : "";
+
       return `
         <div class="sku-item ${selectedId === record.id ? "active" : ""}" onclick="${onClickName}('${record.id}')">
           <div class="sku-item-top">
             <div class="sku-code">${escapeHtml(record.sku)}</div>
             ${priorityPill(record.prioridad)}
           </div>
-          <div class="sku-brand">${escapeHtml(record.marca || "Sin marca")}</div>
+          <div class="sku-brand">${escapeHtml(record.marca || "Sin marca")}${escapeHtml(editorText)}</div>
           <div>${statusPill(record.estado)}</div>
         </div>
       `;
@@ -1872,11 +2057,23 @@ Instrucciones:
     }
 
     function renderWorkList() {
-      const list = sortByPriority(records).filter(record =>
-        record.estado === STATUS.PENDIENTE ||
-        record.estado === STATUS.RECHAZADO ||
-        record.estado === STATUS.TRABAJO
-      );
+      const user = currentUser();
+      const role = getUserRole();
+
+      const list = sortByPriority(records).filter(record => {
+        if (role === ROLES.ADMIN) {
+          return record.estado === STATUS.PENDIENTE ||
+            record.estado === STATUS.RECHAZADO ||
+            record.estado === STATUS.TRABAJO;
+        }
+
+        if (role === ROLES.RETOCADOR) {
+          if (record.estado === STATUS.PENDIENTE) return true;
+          if ((record.estado === STATUS.RECHAZADO || record.estado === STATUS.TRABAJO) && record.editor === user) return true;
+        }
+
+        return false;
+      });
 
       const countEl = document.getElementById("workCount");
       if (countEl) countEl.textContent = list.length;
@@ -1915,8 +2112,9 @@ Instrucciones:
         <div class="info-grid">
           <div class="info-box"><small>Prioridad</small><span>${priorityLabel(record.prioridad)}</span></div>
           <div class="info-box"><small>Versión</small><span>V${escapeHtml(record.version)}</span></div>
+          <div class="info-box"><small>Editor asignado</small><span>${escapeHtml(record.editor || "Sin asignar")}</span></div>
           <div class="info-box"><small>Medidas</small><span>${escapeHtml(record.medidas || "No indicado")}</span></div>
-          <div class="info-box"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
+          <div class="info-box" style="grid-column:1/-1;"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
           ${record.motivoRechazo ? `
             <div class="info-box" style="grid-column:1/-1;">
               <small>Motivo rechazo</small>
@@ -1928,7 +2126,7 @@ Instrucciones:
         <div class="prompt-box">${escapeHtml(record.prompt)}</div>
 
         <div class="actions">
-          ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">Tomar SKU</button>` : ""}
+          ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
         </div>
       `;
@@ -1940,23 +2138,37 @@ Instrucciones:
       const record = getRecord(id);
       if (!record) return;
 
+      if (record.estado === STATUS.RECHAZADO && record.editor && record.editor !== currentUser() && !isAdmin()) {
+        alert(`Este rechazo está asignado a ${record.editor}. Debe volver a trabajarlo el mismo usuario.`);
+        return;
+      }
+
       record.estado = STATUS.TRABAJO;
-      record.editor = currentUser();
-      record.takenAt = new Date().toISOString();
+      record.editor = record.editor || currentUser();
+      if (!isAdmin() || !record.editor) record.editor = currentUser();
+      record.takenAt = record.takenAt || new Date().toISOString();
       record.updatedAt = new Date().toISOString();
 
       await saveRecord(record);
       selectedUploadId = record.id;
       await refresh();
-      toast(`SKU tomado por ${currentUser()}.`);
+      toast(`SKU asignado a ${record.editor}.`);
+    }
+
+    function getUploadCandidateRecords() {
+      const user = currentUser();
+
+      return sortByPriority(records).filter(record => {
+        const uploadableStatus = record.estado === STATUS.TRABAJO || record.estado === STATUS.RECHAZADO;
+        if (!uploadableStatus) return false;
+        if (isAdmin()) return true;
+        return record.editor === user;
+      });
     }
 
     function renderUploadList() {
       const user = currentUser();
-      const list = sortByPriority(records).filter(record =>
-        record.estado === STATUS.TRABAJO &&
-        record.editor === user
-      );
+      const list = getUploadCandidateRecords();
 
       const countEl = document.getElementById("uploadCount");
       if (countEl) countEl.textContent = list.length;
@@ -1970,7 +2182,7 @@ Instrucciones:
       }
 
       if (!list.length) {
-        el.innerHTML = `<div class="empty">No tienes SKUs tomados.</div>`;
+        el.innerHTML = `<div class="empty">No tienes SKUs tomados o rechazados para volver a subir.</div>`;
         return;
       }
 
@@ -1982,33 +2194,38 @@ Instrucciones:
       if (!el) return;
 
       const record = getRecord(selectedUploadId);
-
-      if (!record) {
-        el.innerHTML = `<div class="empty">Selecciona un SKU tomado para subir una o varias imágenes trabajadas.</div>`;
-        return;
-      }
-
-      const preview = await getPreviewHtml(record);
+      const available = getUploadCandidateRecords().length;
+      const selectedTitle = record ? `Subida para ${escapeHtml(record.sku)}` : "Subida inteligente por nombre de archivo";
+      const selectedText = record
+        ? `Puedes subir una imagen de este SKU o arrastrar varias. Si los nombres contienen otros SKU asignados, se distribuirán automáticamente.`
+        : `Arrastra varias imágenes y el sistema buscará el SKU dentro del nombre del archivo para enviarlas a revisión.`;
+      const preview = record ? await getPreviewHtml(record) : `<span>Selecciona un SKU de la lista para ver su última subida, o carga imágenes masivas directamente aquí.</span>`;
 
       el.innerHTML = `
         <div class="detail-header">
           <div>
-            <h2>${escapeHtml(record.sku)}</h2>
-            <small>${escapeHtml(record.marca || "Sin marca")}</small>
+            <h2>${selectedTitle}</h2>
+            <small>${available} SKU(s) disponibles para subir o rehacer</small>
           </div>
-          <div>${statusPill(record.estado)}</div>
+          ${record ? `<div>${statusPill(record.estado)}</div>` : ""}
         </div>
 
         <label
           class="upload-box"
           ondragover="handleDragOver(event)"
           ondragleave="handleDragLeave(event)"
-          ondrop="handleDropUpload(event, '${record.id}')"
+          ondrop="handleDropUpload(event, '${record ? record.id : ""}')"
         >
           <strong>Arrastra una o varias imágenes aquí</strong>
-          <small>También puedes hacer clic para seleccionarlas desde tu computador.</small>
-          <input class="input-file" type="file" accept="image/*" multiple onchange="handleGeneratedUpload('${record.id}', this.files)" />
+          <small>${selectedText}</small>
+          <input class="input-file" type="file" accept="image/*" multiple onchange="handleGeneratedUpload('${record ? record.id : ""}', this.files); this.value = '';" />
         </label>
+
+        <div class="upload-helper">
+          <strong>Cómo debe venir el nombre:</strong> el archivo debe contener el SKU, por ejemplo
+          <strong>123456789_1.jpg</strong>, <strong>123456789.png</strong> o <strong>ambientado_123456789.jpg</strong>.
+          Si un SKU fue rechazado, se mantiene asignado al mismo editor y al volver a subirlo pasa nuevamente a revisión.
+        </div>
 
         <div class="preview">${preview}</div>
       `;
@@ -2031,12 +2248,33 @@ Instrucciones:
       await handleGeneratedUpload(id, event.dataTransfer.files);
     }
 
+    function escapeRegExp(value) {
+      return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function fileNameWithoutExtension(fileName) {
+      return String(fileName || "").replace(/\.[^/.]+$/, "");
+    }
+
+    function fileNameMatchesSku(fileName, sku) {
+      const base = normalizeText(fileNameWithoutExtension(fileName));
+      const normalizedSku = normalizeText(sku);
+      if (!base || !normalizedSku) return false;
+      if (base === normalizedSku) return true;
+
+      const escapedSku = escapeRegExp(normalizedSku);
+      const pattern = new RegExp(`(^|[^a-z0-9])${escapedSku}($|[^a-z0-9])`);
+      return pattern.test(base);
+    }
+
+    function findRecordForUploadedFile(file, candidates) {
+      const sorted = [...candidates].sort((a, b) => String(b.sku || "").length - String(a.sku || "").length);
+      return sorted.find(record => fileNameMatchesSku(file.name, record.sku));
+    }
+
     async function handleGeneratedUpload(id, files) {
       if (!requireTabAccess("upload")) return;
       if (!files || !files.length) return;
-
-      const record = getRecord(id);
-      if (!record) return;
 
       try {
         const imageFiles = [...files].filter(file => file.type.startsWith("image/"));
@@ -2046,43 +2284,225 @@ Instrucciones:
           return;
         }
 
-        if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+        const candidates = getUploadCandidateRecords();
+        const selectedRecord = id ? getRecord(id) : null;
+        const groups = new Map();
+        const unmatched = [];
 
-        for (let i = 0; i < imageFiles.length; i++) {
-          const file = imageFiles[i];
-          const imageId = `${record.id}_${Date.now()}_${i}`;
-          const cleanName = safeFileName(file.name);
-          const path = `${STORAGE_ROOT}/${record.id}/${imageId}_${cleanName}`;
-          const ref = storageRef(storage, path);
+        imageFiles.forEach(file => {
+          let target = findRecordForUploadedFile(file, candidates);
 
-          await uploadBytes(ref, file, { contentType: file.type });
+          if (!target && selectedRecord && imageFiles.length === 1) {
+            target = selectedRecord;
+          }
 
-          record.generatedImages.push({
-            id: imageId,
-            name: file.name,
-            path,
-            size: file.size,
-            type: file.type,
-            uploadedAt: new Date().toISOString(),
-            uploadedBy: currentUser()
-          });
+          if (!target) {
+            unmatched.push(file.name);
+            return;
+          }
+
+          if (!groups.has(target.id)) groups.set(target.id, { record: target, files: [] });
+          groups.get(target.id).files.push(file);
+        });
+
+        if (!groups.size) {
+          alert(
+            "No se pudo asociar ninguna imagen a un SKU tomado o rechazado.\n\n" +
+            "Revisa que el nombre del archivo contenga el SKU exacto.\n\n" +
+            unmatched.slice(0, 12).join("\n")
+          );
+          return;
         }
 
-        record.generatedImageName = getRecordImages(record).map(img => img.name).join(", ");
-        record.estado = STATUS.REVISION;
-        record.editor = currentUser();
-        record.uploadedAt = new Date().toISOString();
-        record.updatedAt = new Date().toISOString();
+        let uploadedCount = 0;
+        const changedRecords = [];
 
-        await saveRecord(record);
+        for (const group of groups.values()) {
+          const record = group.record;
+          if (!Array.isArray(record.generatedImages)) record.generatedImages = [];
+
+          for (let i = 0; i < group.files.length; i++) {
+            const file = group.files[i];
+            const imageId = `${record.id}_${Date.now()}_${i}_${Math.random().toString(16).slice(2)}`;
+            const cleanName = safeFileName(file.name);
+            const path = `${STORAGE_ROOT}/${record.id}/${imageId}_${cleanName}`;
+            const ref = storageRef(storage, path);
+
+            await uploadBytes(ref, file, { contentType: file.type });
+
+            record.generatedImages.push({
+              id: imageId,
+              name: file.name,
+              path,
+              size: file.size,
+              type: file.type,
+              matchedSku: record.sku,
+              uploadedAt: new Date().toISOString(),
+              uploadedBy: currentUser()
+            });
+
+            uploadedCount++;
+          }
+
+          record.generatedImageName = getRecordImages(record).map(img => img.name).join(", ");
+          record.estado = STATUS.REVISION;
+          record.editor = record.editor || currentUser();
+          record.motivoRechazo = "";
+          record.uploadedAt = new Date().toISOString();
+          record.updatedAt = new Date().toISOString();
+          changedRecords.push(record);
+        }
+
+        for (const record of changedRecords) {
+          await saveRecord(record);
+        }
+
         selectedUploadId = "";
         await refresh();
 
-        toast(`${imageFiles.length} imagen(es) subidas a revisión.`);
+        let message = `${uploadedCount} imagen(es) subidas a revisión en ${changedRecords.length} SKU(s).`;
+        if (unmatched.length) {
+          message += `\n\nNo asociadas:\n${unmatched.slice(0, 12).join("\n")}`;
+          alert(message);
+        } else {
+          toast(message);
+        }
       } catch (error) {
         console.error(error);
         alert("No se pudo subir la imagen a Firebase Storage. Revisa reglas/permisos de Storage.");
       }
+    }
+
+    function encodeForInline(value) {
+      return encodeURIComponent(String(value || ""));
+    }
+
+    function addFalabellaImageSize(url) {
+      const clean = String(url || "").replace("/w=1500,h=1500,fit=pad", "");
+      if (!clean.includes("media.falabella.com") || !clean.includes("/public")) return clean;
+      return clean.replace("/public", "/w=1500,h=1500,fit=pad/public");
+    }
+
+    function isFalabellaMediaUrl(value) {
+      const url = String(value || "");
+      return url.includes("media.falabella.com") ||
+        url.includes("imagedelivery.net") ||
+        url.includes("/falabellaCL/");
+    }
+
+    function extractMediaItems(value, found = []) {
+      if (!value) return found;
+
+      if (typeof value === "string") {
+        if (isFalabellaMediaUrl(value)) {
+          found.push({ url: value, position: null });
+        }
+        return found;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(item => extractMediaItems(item, found));
+        return found;
+      }
+
+      if (typeof value === "object") {
+        const url = value.media_url || value.mediaUrl || value.url || value.src;
+        const positionRaw = value.position ?? value.pos ?? value.order ?? value.sequence ?? null;
+
+        if (url && isFalabellaMediaUrl(url)) {
+          const position = positionRaw === null || positionRaw === "" ? null : Number(positionRaw);
+          found.push({
+            url,
+            position: Number.isFinite(position) ? position : null
+          });
+        }
+
+        Object.values(value).forEach(item => extractMediaItems(item, found));
+      }
+
+      return found;
+    }
+
+    function uniqueMediaItems(items) {
+      const seen = new Set();
+      const output = [];
+
+      items.forEach(item => {
+        const cleanUrl = String(item.url || "").trim().replace("/w=1500,h=1500,fit=pad", "");
+        if (!cleanUrl || seen.has(cleanUrl)) return;
+        seen.add(cleanUrl);
+        output.push({ ...item, url: cleanUrl });
+      });
+
+      return output;
+    }
+
+    async function getPos1Url(record) {
+      if (!record || !record.sku) return "";
+      if (Object.prototype.hasOwnProperty.call(pos1Cache, record.sku)) return pos1Cache[record.sku];
+
+      try {
+        const response = await fetch(endpointBySku(record.sku), { cache: "no-store" });
+        if (!response.ok) throw new Error(`Error JSON ${response.status}`);
+
+        const json = await response.json();
+        const items = uniqueMediaItems(extractMediaItems(json));
+        const pos1 = items.find(item => Number(item.position) === 1) ||
+          items.find(item => /_0?1\/public/i.test(item.url)) ||
+          items[0];
+
+        const url = pos1 ? addFalabellaImageSize(pos1.url) : "";
+        pos1Cache[record.sku] = url;
+        return url;
+      } catch (error) {
+        console.warn("No se pudo obtener POS1:", record.sku, error);
+        pos1Cache[record.sku] = "";
+        return "";
+      }
+    }
+
+    async function getReviewComparisonHtml(record) {
+      const images = getRecordImages(record);
+      const pos1Url = await getPos1Url(record);
+
+      if (!images.length) {
+        return `<div class="compare-empty">Sin imagen subida</div>`;
+      }
+
+      const pairs = [];
+
+      for (const image of images) {
+        let workedUrl = "";
+
+        try {
+          workedUrl = image.path ? await getDownloadURL(storageRef(storage, image.path)) : "";
+        } catch (error) {
+          console.warn("No se pudo cargar imagen trabajada:", image.path, error);
+        }
+
+        const posHtml = pos1Url ? `
+          <img src="${escapeHtml(pos1Url)}" alt="POS1 actual" onclick="openImageModal('${encodeForInline(pos1Url)}', '${encodeForInline(record.sku + " · POS1 actual")}')">
+        ` : `<div class="compare-empty">No se pudo cargar POS1 actual desde JSON</div>`;
+
+        const workedHtml = workedUrl ? `
+          <img src="${escapeHtml(workedUrl)}" alt="${escapeHtml(image.name || "Imagen trabajada")}" onclick="openImageModal('${encodeForInline(workedUrl)}', '${encodeForInline(image.name || record.sku + " · imagen trabajada")}')">
+        ` : `<div class="compare-empty">Imagen trabajada no disponible</div>`;
+
+        pairs.push(`
+          <div class="compare-pair">
+            <div class="compare-box">
+              <div class="compare-title">Actual JSON <span>POS1</span></div>
+              ${posHtml}
+            </div>
+            <div class="compare-box">
+              <div class="compare-title">Imagen trabajada <span>${escapeHtml(image.name || "Sin nombre")}</span></div>
+              ${workedHtml}
+            </div>
+          </div>
+        `);
+      }
+
+      return pairs.join("");
     }
 
     async function renderReviewList() {
@@ -2099,29 +2519,37 @@ Instrucciones:
       const htmlParts = [];
 
       for (const record of list) {
-        const preview = await getPreviewHtml(record);
+        const comparison = await getReviewComparisonHtml(record);
 
         htmlParts.push(`
           <article class="review-card">
-            <div>
+            <div class="review-side">
               <div class="review-top">
                 <input type="checkbox" class="review-check" value="${escapeHtml(record.id)}">
                 <strong>${escapeHtml(record.sku)}</strong>
-                ${priorityPill(record.prioridad)}
-                ${statusPill(record.estado)}
               </div>
 
-              <div class="sku-brand">
-                Marca: ${escapeHtml(record.marca || "Sin marca")} · Editor: ${escapeHtml(record.editor || "Sin editor")} · V${escapeHtml(record.version)}
+              <div>${priorityPill(record.prioridad)} ${statusPill(record.estado)}</div>
+
+              <div class="review-meta">
+                Marca: ${escapeHtml(record.marca || "Sin marca")}<br>
+                Editor: ${escapeHtml(record.editor || "Sin editor")}<br>
+                Versión: V${escapeHtml(record.version)}<br>
+                Subido: ${formatDate(record.uploadedAt) || "-"}
               </div>
 
-              <div class="actions" style="margin-top:14px;">
+              <div class="reject-box">
+                <label>Motivo de rechazo</label>
+                <textarea id="rejectReason_${escapeHtml(record.id)}" placeholder="Escribe aquí el motivo si esta imagen se rechaza."></textarea>
+              </div>
+
+              <div class="actions">
                 <button class="btn btn-primary btn-small" onclick="approveOne('${record.id}')">Aprobar y descargar</button>
                 <button class="btn btn-red btn-small" onclick="rejectOne('${record.id}')">Rechazar</button>
               </div>
             </div>
 
-            <div class="preview">${preview}</div>
+            <div class="review-visual-area">${comparison}</div>
           </article>
         `);
       }
@@ -2208,20 +2636,35 @@ Instrucciones:
       await approveAndDownload([id]);
     }
 
+    function getReviewReason(id) {
+      const el = document.getElementById(`rejectReason_${id}`);
+      return el ? el.value.trim() : "";
+    }
+
     async function rejectOne(id) {
       if (!requireTabAccess("review")) return;
-      const reason = prompt("Motivo del rechazo:");
+      const reason = getReviewReason(id);
 
-      if (!reason || !reason.trim()) {
-        alert("El motivo de rechazo es obligatorio.");
+      if (!reason) {
+        alert("Escribe el motivo del rechazo en la tarjeta antes de rechazar.");
         return;
       }
 
-      await rejectRecords([id], reason.trim());
+      await rejectRecordsWithReasons({ [id]: reason });
     }
 
     function getSelectedReviewIds() {
       return [...document.querySelectorAll(".review-check:checked")].map(input => input.value);
+    }
+
+    function toggleSelectAllReviews() {
+      const checks = [...document.querySelectorAll(".review-check")];
+      if (!checks.length) return;
+
+      const shouldCheck = checks.some(input => !input.checked);
+      checks.forEach(input => {
+        input.checked = shouldCheck;
+      });
     }
 
     async function approveSelected() {
@@ -2240,19 +2683,28 @@ Instrucciones:
       if (!requireTabAccess("review")) return;
 
       const ids = getSelectedReviewIds();
-      const reason = document.getElementById("bulkReason").value.trim();
+      const bulkReason = document.getElementById("bulkReason").value.trim();
 
       if (!ids.length) {
         alert("Selecciona al menos un SKU.");
         return;
       }
 
-      if (!reason) {
-        alert("Para rechazar en lote debes escribir un motivo.");
+      const reasonById = {};
+      const missing = [];
+
+      ids.forEach(id => {
+        const reason = bulkReason || getReviewReason(id);
+        if (!reason) missing.push(id);
+        reasonById[id] = reason;
+      });
+
+      if (missing.length) {
+        alert("Falta escribir motivo de rechazo en una o más tarjetas seleccionadas, o usa el motivo múltiple de arriba.");
         return;
       }
 
-      await rejectRecords(ids, reason);
+      await rejectRecordsWithReasons(reasonById);
       document.getElementById("bulkReason").value = "";
     }
 
@@ -2318,8 +2770,10 @@ Instrucciones:
       }
     }
 
-    async function rejectRecords(ids, reason) {
+    async function rejectRecordsWithReasons(reasonById) {
       try {
+        const ids = Object.keys(reasonById || {});
+
         for (const id of ids) {
           const record = getRecord(id);
           if (!record) continue;
@@ -2329,7 +2783,7 @@ Instrucciones:
 
           record.estado = STATUS.RECHAZADO;
           record.revisor = currentUser();
-          record.motivoRechazo = reason;
+          record.motivoRechazo = reasonById[id];
           record.version = Number(record.version || 1) + 1;
           record.lastImageNames = imageNames;
           record.generatedImages = [];
@@ -2342,7 +2796,7 @@ Instrucciones:
         }
 
         await refresh();
-        toast(`${ids.length} SKU(s) rechazados. Imágenes borradas del storage.`);
+        toast(`${ids.length} SKU(s) rechazados. Se mantienen asignados al editor original.`);
       } catch (error) {
         console.error(error);
         alert("No se pudo rechazar o borrar imágenes. Revisa permisos de Storage.");
@@ -2529,6 +2983,28 @@ Instrucciones:
       }
     }
 
+
+    function openImageModal(encodedUrl, encodedTitle) {
+      const modal = document.getElementById("imageModal");
+      const img = document.getElementById("imageModalImg");
+      const title = document.getElementById("imageModalTitle");
+      if (!modal || !img || !title) return;
+
+      img.src = decodeURIComponent(encodedUrl || "");
+      title.textContent = decodeURIComponent(encodedTitle || "Vista ampliada");
+      modal.classList.remove("hidden");
+    }
+
+    function closeImageModal(event) {
+      if (event) event.stopPropagation();
+      const modal = document.getElementById("imageModal");
+      const img = document.getElementById("imageModalImg");
+      if (!modal || !img) return;
+
+      modal.classList.add("hidden");
+      img.src = "";
+    }
+
     Object.assign(window, {
       handleUserChange,
       toggleTheme,
@@ -2549,7 +3025,10 @@ Instrucciones:
       approveOne,
       rejectOne,
       approveSelected,
-      rejectSelected
+      rejectSelected,
+      toggleSelectAllReviews,
+      openImageModal,
+      closeImageModal
     });
   </script>
 </body>
