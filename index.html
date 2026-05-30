@@ -1421,7 +1421,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.0.5</span></h1>
+          <h1>Flujo IA <span class="version">V1.0.6</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1639,7 +1639,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0.5";
+    const APP_VERSION = "V1.0.6";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -3763,71 +3763,225 @@ Instrucciones:
       return d;
     }
 
-    function calculateMetrics() {
-      const now = new Date();
-      const weekStart = startOfWeek(now);
-      const weekEnd = endOfWeekFromStart(weekStart);
-      const monthStart = startOfMonth(now);
-      const users = [...new Set(Object.keys(USER_ROLES).filter(user =>
-        USER_ROLES[user] === ROLES.RETOCADOR || USER_ROLES[user] === ROLES.ADMIN
-      ))].sort((a, b) => a.localeCompare(b, "es"));
-      const byUser = {};
-      const events = [];
+    function parseMetricDate(value) {
+      if (!value) return null;
 
-      users.forEach(user => {
-        byUser[user] = {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+
+      return date;
+    }
+
+    function monthKeyFromDate(date) {
+      const d = parseMetricDate(date);
+      if (!d) return "";
+
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function ensureMetricUser(byUser, user) {
+      const safeUser = user || "Sin editor";
+
+      if (!byUser[safeUser]) {
+        byUser[safeUser] = {
           weekApproved: 0,
           weekRejected: 0,
           monthApproved: 0,
           monthRejected: 0,
           totalApproved: 0,
-          totalRejected: 0
+          totalRejected: 0,
+          weekImages: 0,
+          monthImages: 0,
+          totalImages: 0,
+          weekSkus: new Set(),
+          monthSkus: new Set(),
+          totalSkus: new Set(),
+          weekApprovedSkus: new Set(),
+          weekRejectedSkus: new Set(),
+          monthApprovedSkus: new Set(),
+          monthRejectedSkus: new Set(),
+          totalApprovedSkus: new Set(),
+          totalRejectedSkus: new Set()
         };
-      });
+      }
+
+      return byUser[safeUser];
+    }
+
+    function currentSkuImagesFromRecord(record) {
+      const active = getRecordImages(record).map(image => image.name || "").filter(Boolean);
+      if (active.length) return active;
+
+      return String(record.lastImageNames || "")
+        .split(",")
+        .map(name => name.trim())
+        .filter(Boolean);
+    }
+
+    function collectWorkEvents() {
+      const events = [];
+      const seen = new Set();
 
       records.forEach(record => {
-        getReviewEvents(record).forEach(event => {
-          const user = event.editor || record.editor || "Sin editor";
-          if (!byUser[user]) {
-            byUser[user] = {
-              weekApproved: 0,
-              weekRejected: 0,
-              monthApproved: 0,
-              monthRejected: 0,
-              totalApproved: 0,
-              totalRejected: 0
-            };
-          }
+        const uploadEvents = getUploadEvents(record);
 
-          const eventDate = new Date(event.reviewedAt || event.date || record.reviewedAt || record.updatedAt || Date.now());
-          if (Number.isNaN(eventDate.getTime())) return;
+        uploadEvents.forEach((event, index) => {
+          const date = parseMetricDate(event.uploadedAt || record.uploadedAt || record.updatedAt || record.createdAt);
+          if (!date) return;
 
-          const isApproved = event.result === "approved";
-          const totalKey = isApproved ? "totalApproved" : "totalRejected";
-          const weekKey = isApproved ? "weekApproved" : "weekRejected";
-          const monthKey = isApproved ? "monthApproved" : "monthRejected";
-
-          byUser[user][totalKey] += 1;
-          if (eventDate >= weekStart && eventDate <= weekEnd) byUser[user][weekKey] += 1;
-          if (eventDate >= monthStart) byUser[user][monthKey] += 1;
+          const user = event.editor || event.uploadedBy || record.editor || "Sin editor";
+          const name = event.name || "";
+          const key = `${record.id}|upload|${event.id || name || index}|${date.toISOString()}`;
+          if (seen.has(key)) return;
+          seen.add(key);
 
           events.push({
-            fecha: eventDate.toISOString(),
-            semanaInicio: weekStart.toISOString(),
+            id: key,
+            fecha: date.toISOString(),
+            mes: monthKeyFromDate(date),
             sku: event.sku || record.sku,
+            marca: record.marca || "",
+            archivo: name,
+            retocador: user,
+            subidoPor: event.uploadedBy || user,
+            estadoActual: record.estado || "",
+            tipo: "Subido a revisión",
+            resultado: "Trabajado"
+          });
+        });
+
+        if (!uploadEvents.length && [STATUS.REVISION, STATUS.DESCARGADO, STATUS.RECHAZADO].includes(record.estado)) {
+          const date = parseMetricDate(record.uploadedAt || record.reviewedAt || record.updatedAt || record.createdAt);
+          if (!date) return;
+
+          const names = currentSkuImagesFromRecord(record);
+          const count = Math.max(1, names.length);
+
+          for (let index = 0; index < count; index++) {
+            const key = `${record.id}|fallback-upload|${index}|${date.toISOString()}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            events.push({
+              id: key,
+              fecha: date.toISOString(),
+              mes: monthKeyFromDate(date),
+              sku: record.sku,
+              marca: record.marca || "",
+              archivo: names[index] || "",
+              retocador: record.editor || "Sin editor",
+              subidoPor: record.editor || "Sin editor",
+              estadoActual: record.estado || "",
+              tipo: "Subido a revisión",
+              resultado: "Trabajado"
+            });
+          }
+        }
+      });
+
+      return events;
+    }
+
+    function collectReviewMetricEvents() {
+      const events = [];
+      const seen = new Set();
+
+      records.forEach(record => {
+        getReviewEvents(record).forEach((event, index) => {
+          const date = parseMetricDate(event.reviewedAt || event.date || record.reviewedAt || record.updatedAt || record.createdAt);
+          if (!date) return;
+
+          const isApproved = event.result === "approved";
+          const user = event.editor || record.editor || "Sin editor";
+          const key = `${record.id}|review|${event.id || event.name || index}|${date.toISOString()}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+
+          events.push({
+            id: key,
+            fecha: date.toISOString(),
+            mes: monthKeyFromDate(date),
+            sku: event.sku || record.sku,
+            marca: record.marca || "",
             archivo: event.name || "",
             retocador: user,
             revisor: event.revisor || record.revisor || "",
-            resultado: isApproved ? "Aprobado" : "Rechazado"
+            estadoActual: record.estado || "",
+            tipo: "Revisión",
+            resultado: isApproved ? "Aprobado" : "Rechazado",
+            result: isApproved ? "approved" : "rejected"
           });
         });
       });
 
-      return { byUser, events, weekStart, weekEnd, monthStart };
+      return events;
+    }
+
+    function calculateMetrics() {
+      const now = new Date();
+      const weekStart = startOfWeek(now);
+      const weekEnd = endOfWeekFromStart(weekStart);
+      const monthStart = startOfMonth(now);
+      const byUser = {};
+
+      Object.keys(USER_ROLES)
+        .filter(user => USER_ROLES[user] === ROLES.RETOCADOR || USER_ROLES[user] === ROLES.ADMIN)
+        .forEach(user => ensureMetricUser(byUser, user));
+
+      const workEvents = collectWorkEvents();
+      const reviewEvents = collectReviewMetricEvents();
+
+      workEvents.forEach(event => {
+        const date = parseMetricDate(event.fecha);
+        if (!date) return;
+
+        const userData = ensureMetricUser(byUser, event.retocador);
+        userData.totalImages += 1;
+        userData.totalSkus.add(event.sku);
+
+        if (date >= weekStart && date <= weekEnd) {
+          userData.weekImages += 1;
+          userData.weekSkus.add(event.sku);
+        }
+
+        if (date >= monthStart) {
+          userData.monthImages += 1;
+          userData.monthSkus.add(event.sku);
+        }
+      });
+
+      reviewEvents.forEach(event => {
+        const date = parseMetricDate(event.fecha);
+        if (!date) return;
+
+        const userData = ensureMetricUser(byUser, event.retocador);
+        const isApproved = event.result === "approved";
+        const totalKey = isApproved ? "totalApproved" : "totalRejected";
+        const weekKey = isApproved ? "weekApproved" : "weekRejected";
+        const monthKey = isApproved ? "monthApproved" : "monthRejected";
+        const totalSkuKey = isApproved ? "totalApprovedSkus" : "totalRejectedSkus";
+        const weekSkuKey = isApproved ? "weekApprovedSkus" : "weekRejectedSkus";
+        const monthSkuKey = isApproved ? "monthApprovedSkus" : "monthRejectedSkus";
+
+        userData[totalKey] += 1;
+        userData[totalSkuKey].add(event.sku);
+
+        if (date >= weekStart && date <= weekEnd) {
+          userData[weekKey] += 1;
+          userData[weekSkuKey].add(event.sku);
+        }
+
+        if (date >= monthStart) {
+          userData[monthKey] += 1;
+          userData[monthSkuKey].add(event.sku);
+        }
+      });
+
+      return { byUser, workEvents, reviewEvents, weekStart, weekEnd, monthStart };
     }
 
     function metricRows() {
-      const { byUser, events, weekStart, weekEnd, monthStart } = calculateMetrics();
+      const { byUser, workEvents, reviewEvents, weekStart, weekEnd, monthStart } = calculateMetrics();
       const rows = Object.keys(byUser).map(user => {
         const data = byUser[user];
         const weekTotal = data.weekApproved + data.weekRejected;
@@ -3836,19 +3990,31 @@ Instrucciones:
 
         return {
           user,
+          weekSkus: data.weekSkus.size,
+          weekImages: data.weekImages,
           weekApproved: data.weekApproved,
           weekRejected: data.weekRejected,
+          weekApprovedSkus: data.weekApprovedSkus.size,
+          weekRejectedSkus: data.weekRejectedSkus.size,
           weekTotal,
+          monthSkus: data.monthSkus.size,
+          monthImages: data.monthImages,
           monthApproved: data.monthApproved,
           monthRejected: data.monthRejected,
+          monthApprovedSkus: data.monthApprovedSkus.size,
+          monthRejectedSkus: data.monthRejectedSkus.size,
           monthTotal,
+          totalSkus: data.totalSkus.size,
+          totalImages: data.totalImages,
           totalApproved: data.totalApproved,
           totalRejected: data.totalRejected,
+          totalApprovedSkus: data.totalApprovedSkus.size,
+          totalRejectedSkus: data.totalRejectedSkus.size,
           total
         };
-      }).sort((a, b) => b.weekTotal - a.weekTotal || b.monthTotal - a.monthTotal || a.user.localeCompare(b.user, "es"));
+      }).sort((a, b) => b.weekSkus - a.weekSkus || b.weekImages - a.weekImages || b.monthSkus - a.monthSkus || a.user.localeCompare(b.user, "es"));
 
-      return { rows, events, weekStart, weekEnd, monthStart };
+      return { rows, workEvents, reviewEvents, weekStart, weekEnd, monthStart };
     }
 
     function renderStackedBarChart(rows, period) {
@@ -3899,10 +4065,15 @@ Instrucciones:
       if (panel.classList.contains("hidden")) return;
 
       const { rows, weekStart, weekEnd, monthStart } = metricRows();
+      const totalWeekSkus = rows.reduce((sum, row) => sum + row.weekSkus, 0);
+      const totalWeekImages = rows.reduce((sum, row) => sum + row.weekImages, 0);
       const totalWeekApproved = rows.reduce((sum, row) => sum + row.weekApproved, 0);
       const totalWeekRejected = rows.reduce((sum, row) => sum + row.weekRejected, 0);
+      const totalMonthSkus = rows.reduce((sum, row) => sum + row.monthSkus, 0);
+      const totalMonthImages = rows.reduce((sum, row) => sum + row.monthImages, 0);
       const totalMonthApproved = rows.reduce((sum, row) => sum + row.monthApproved, 0);
       const totalMonthRejected = rows.reduce((sum, row) => sum + row.monthRejected, 0);
+      const totalAllSkus = rows.reduce((sum, row) => sum + row.totalSkus, 0);
       const totalAllApproved = rows.reduce((sum, row) => sum + row.totalApproved, 0);
       const totalAllRejected = rows.reduce((sum, row) => sum + row.totalRejected, 0);
 
@@ -3910,7 +4081,7 @@ Instrucciones:
         <div class="metrics-title">
           <div>
             <h3>Métricas de producción</h3>
-            <div class="master-muted">Cuenta cada imagen/vista revisada por retocador. Semana de lunes ${formatDate(weekStart.toISOString()).split(" ")[0]} a domingo ${formatDate(weekEnd.toISOString()).split(" ")[0]} · Mes desde ${formatDate(monthStart.toISOString()).split(" ")[0]}</div>
+            <div class="master-muted">Cuenta SKUs trabajados e imágenes/vistas revisadas por retocador. Semana de lunes ${formatDate(weekStart.toISOString()).split(" ")[0]} a domingo ${formatDate(weekEnd.toISOString()).split(" ")[0]} · Mes desde ${formatDate(monthStart.toISOString()).split(" ")[0]}</div>
           </div>
           <div class="panel-title-actions">
             <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Descargar métricas Excel</button>
@@ -3919,18 +4090,22 @@ Instrucciones:
         </div>
 
         <div class="metrics-grid">
-          <div class="metric-card"><small>Aprobadas esta semana</small><strong>${totalWeekApproved}</strong></div>
-          <div class="metric-card"><small>Rechazadas esta semana</small><strong>${totalWeekRejected}</strong></div>
-          <div class="metric-card"><small>Total esta semana</small><strong>${totalWeekApproved + totalWeekRejected}</strong></div>
-          <div class="metric-card"><small>Aprobadas este mes</small><strong>${totalMonthApproved}</strong></div>
-          <div class="metric-card"><small>Rechazadas este mes</small><strong>${totalMonthRejected}</strong></div>
-          <div class="metric-card"><small>Total registrado</small><strong>${totalAllApproved + totalAllRejected}</strong></div>
+          <div class="metric-card"><small>SKUs trabajados semana</small><strong>${totalWeekSkus}</strong></div>
+          <div class="metric-card"><small>Imágenes subidas semana</small><strong>${totalWeekImages}</strong></div>
+          <div class="metric-card"><small>Aprobadas semana</small><strong>${totalWeekApproved}</strong></div>
+          <div class="metric-card"><small>Rechazadas semana</small><strong>${totalWeekRejected}</strong></div>
+          <div class="metric-card"><small>SKUs trabajados mes</small><strong>${totalMonthSkus}</strong></div>
+          <div class="metric-card"><small>Imágenes subidas mes</small><strong>${totalMonthImages}</strong></div>
+          <div class="metric-card"><small>Aprobadas mes</small><strong>${totalMonthApproved}</strong></div>
+          <div class="metric-card"><small>Rechazadas mes</small><strong>${totalMonthRejected}</strong></div>
+          <div class="metric-card"><small>SKUs histórico</small><strong>${totalAllSkus}</strong></div>
+          <div class="metric-card"><small>Total revisadas</small><strong>${totalAllApproved + totalAllRejected}</strong></div>
         </div>
 
-        <div class="metrics-title"><h3>Comparativo semanal</h3></div>
+        <div class="metrics-title"><h3>Comparativo semanal · aprobadas/rechazadas</h3></div>
         ${renderStackedBarChart(rows, "week")}
 
-        <div class="metrics-title"><h3>Comparativo mensual</h3></div>
+        <div class="metrics-title"><h3>Comparativo mensual · aprobadas/rechazadas</h3></div>
         ${renderStackedBarChart(rows, "month")}
 
         <div class="master-table-wrap">
@@ -3938,26 +4113,30 @@ Instrucciones:
             <thead>
               <tr>
                 <th>Retocador</th>
+                <th>SKUs semana</th>
+                <th>Imgs semana</th>
                 <th>Aprobadas semana</th>
                 <th>Rechazadas semana</th>
-                <th>Total semana</th>
+                <th>SKUs mes</th>
+                <th>Imgs mes</th>
                 <th>Aprobadas mes</th>
                 <th>Rechazadas mes</th>
-                <th>Total mes</th>
-                <th>Total histórico</th>
+                <th>SKUs histórico</th>
               </tr>
             </thead>
             <tbody>
               ${rows.map(row => `
                 <tr>
                   <td><strong>${escapeHtml(row.user)}</strong></td>
+                  <td>${row.weekSkus}</td>
+                  <td>${row.weekImages}</td>
                   <td>${row.weekApproved}</td>
                   <td>${row.weekRejected}</td>
-                  <td>${row.weekTotal}</td>
+                  <td>${row.monthSkus}</td>
+                  <td>${row.monthImages}</td>
                   <td>${row.monthApproved}</td>
                   <td>${row.monthRejected}</td>
-                  <td>${row.monthTotal}</td>
-                  <td>${row.total}</td>
+                  <td>${row.totalSkus}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -3966,45 +4145,146 @@ Instrucciones:
       `;
     }
 
+    function dateInRange(value, start, end) {
+      const date = parseMetricDate(value);
+      if (!date) return false;
+
+      return date >= start && date <= end;
+    }
+
+    function groupSkuWorkRows(events, start, end) {
+      const map = new Map();
+
+      events.forEach(event => {
+        if (!dateInRange(event.fecha, start, end)) return;
+
+        const key = `${event.retocador}|${event.sku}`;
+        const existing = map.get(key) || {
+          Retocador: event.retocador,
+          SKU: event.sku,
+          Marca: event.marca || "",
+          Mes: event.mes || monthKeyFromDate(event.fecha),
+          "Estado actual": event.estadoActual || "",
+          "Cantidad imágenes": 0,
+          Archivos: [],
+          "Primera fecha": event.fecha,
+          "Última fecha": event.fecha
+        };
+
+        existing["Cantidad imágenes"] += 1;
+        if (event.archivo) existing.Archivos.push(event.archivo);
+        if (new Date(event.fecha) < new Date(existing["Primera fecha"])) existing["Primera fecha"] = event.fecha;
+        if (new Date(event.fecha) > new Date(existing["Última fecha"])) existing["Última fecha"] = event.fecha;
+        map.set(key, existing);
+      });
+
+      return [...map.values()]
+        .sort((a, b) => a.Retocador.localeCompare(b.Retocador, "es") || String(a.SKU).localeCompare(String(b.SKU), "es"))
+        .map(row => ({
+          ...row,
+          "Primera fecha": formatDate(row["Primera fecha"]),
+          "Última fecha": formatDate(row["Última fecha"]),
+          Archivos: [...new Set(row.Archivos)].join(", ")
+        }));
+    }
+
+    function emptySafeRows(rows, message = "Sin datos para el periodo") {
+      return rows.length ? rows : [{ Información: message }];
+    }
+
     function downloadMetricsExcel() {
       if (!requireAdmin()) return;
 
-      const { rows, events, weekStart, weekEnd, monthStart } = metricRows();
+      const { rows, workEvents, reviewEvents, weekStart, weekEnd, monthStart } = metricRows();
+      const now = new Date();
+      const monthEnd = new Date(now);
+      monthEnd.setHours(23, 59, 59, 999);
+
       const summaryRows = rows.map(row => ({
         Retocador: row.user,
+        "SKUs trabajados semana": row.weekSkus,
+        "Imágenes subidas semana": row.weekImages,
         "Aprobadas semana": row.weekApproved,
         "Rechazadas semana": row.weekRejected,
-        "Total semana": row.weekTotal,
+        "SKUs aprobados semana": row.weekApprovedSkus,
+        "SKUs rechazados semana": row.weekRejectedSkus,
+        "SKUs trabajados mes": row.monthSkus,
+        "Imágenes subidas mes": row.monthImages,
         "Aprobadas mes": row.monthApproved,
         "Rechazadas mes": row.monthRejected,
-        "Total mes": row.monthTotal,
+        "SKUs aprobados mes": row.monthApprovedSkus,
+        "SKUs rechazados mes": row.monthRejectedSkus,
+        "SKUs trabajados histórico": row.totalSkus,
+        "Imágenes subidas histórico": row.totalImages,
         "Aprobadas histórico": row.totalApproved,
-        "Rechazadas histórico": row.totalRejected,
-        "Total histórico": row.total
+        "Rechazadas histórico": row.totalRejected
       }));
 
-      const detailRows = events
+      const weekSkuRows = groupSkuWorkRows(workEvents, weekStart, weekEnd);
+      const monthSkuRows = groupSkuWorkRows(workEvents, monthStart, monthEnd);
+
+      const workDetailRows = workEvents
         .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
         .map(event => ({
           Fecha: formatDate(event.fecha),
+          Mes: event.mes,
           SKU: event.sku,
+          Marca: event.marca,
+          Archivo: event.archivo,
+          Retocador: event.retocador,
+          "Subido por": event.subidoPor,
+          "Estado actual": event.estadoActual,
+          Tipo: event.tipo
+        }));
+
+      const reviewDetailRows = reviewEvents
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+        .map(event => ({
+          Fecha: formatDate(event.fecha),
+          Mes: event.mes,
+          SKU: event.sku,
+          Marca: event.marca,
           Archivo: event.archivo,
           Retocador: event.retocador,
           Revisor: event.revisor,
-          Resultado: event.resultado
+          Resultado: event.resultado,
+          "Estado actual": event.estadoActual
         }));
 
       const infoRows = [
         { Campo: "Semana", Valor: `${formatDate(weekStart.toISOString()).split(" ")[0]} a ${formatDate(weekEnd.toISOString()).split(" ")[0]}` },
-        { Campo: "Mes desde", Valor: formatDate(monthStart.toISOString()).split(" ")[0] },
+        { Campo: "Mes", Valor: `${formatDate(monthStart.toISOString()).split(" ")[0]} a ${formatDate(monthEnd.toISOString()).split(" ")[0]}` },
+        { Campo: "Criterio semana", Valor: "Lunes a domingo" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
 
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(infoRows), "Periodo");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Resumen");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), "Detalle");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(infoRows)), "Periodo");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(summaryRows)), "Resumen usuarios");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(weekSkuRows)), "SKUs semana");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(monthSkuRows)), "SKUs mes");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(workDetailRows)), "Detalle trabajo");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(reviewDetailRows)), "Detalle revisión");
       XLSX.writeFile(workbook, `metricas_flujo_ia_${dateStamp()}.xlsx`);
+    }
+
+    function uniqueZipFileName(fileName, sku, usedNames) {
+      const safeOriginal = safeFileName(fileName || `${sku}.jpg`);
+      const hasExtension = /\.[a-z0-9]{2,5}$/i.test(safeOriginal);
+      const normalized = hasExtension ? safeOriginal : `${safeOriginal}.jpg`;
+      const dotIndex = normalized.lastIndexOf(".");
+      const name = dotIndex > -1 ? normalized.slice(0, dotIndex) : normalized;
+      const ext = dotIndex > -1 ? normalized.slice(dotIndex) : ".jpg";
+      let candidate = normalized;
+      let counter = 2;
+
+      while (usedNames.has(candidate)) {
+        candidate = `${name}_${counter}${ext}`;
+        counter++;
+      }
+
+      usedNames.add(candidate);
+      return candidate;
     }
 
     async function approveOne(id) {
@@ -4106,15 +4386,18 @@ Instrucciones:
         const zip = new JSZip();
         let totalFiles = 0;
 
+        const usedZipNames = new Set();
+
         for (const record of validRecords) {
-          const folder = zip.folder(safeFileName(record.sku));
           const images = getRecordImages(record);
 
           for (const image of images) {
             if (!image.path) continue;
 
             const blob = await downloadStorageBlob(image.path);
-            folder.file(image.name || `${record.sku}_${totalFiles + 1}.jpg`, blob);
+            const baseName = image.name || `${record.sku}_${totalFiles + 1}.jpg`;
+            const flatName = uniqueZipFileName(baseName, record.sku, usedZipNames);
+            zip.file(flatName, blob);
             totalFiles++;
           }
         }
