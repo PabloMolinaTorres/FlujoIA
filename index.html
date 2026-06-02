@@ -1721,7 +1721,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.2</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.3</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1941,7 +1941,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.2";
+    const APP_VERSION = "V1.1.3";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2564,40 +2564,39 @@ const firebaseConfig = {
       return record;
     }
 
+    function cleanPromptValue(value) {
+      return String(value || "").trim();
+    }
+
+    function promptLine(label, value) {
+      const clean = cleanPromptValue(value);
+      return clean ? `${label}: ${clean}` : "";
+    }
+
     function buildPrompt(record) {
       const data = getResolvedProductData(record);
-      const nombre = data.nombre || "sin nombre público recuperado";
-      const marca = data.marca || "sin marca indicada";
-      const categoria = data.categoria || "sin categoría indicada";
-      const material = data.material || "sin material indicado";
-      const color = data.color || "sin color indicado";
-      const medidas = data.medidas || "sin medidas indicadas";
-      const modelo = data.modelo || "sin modelo indicado";
-      const descripcion = data.descripcion || "sin descripción pública recuperada";
-      const comentario = data.comentario || "sin comentario adicional";
+      const contextLines = [
+        promptLine("SKU", record.sku),
+        promptLine("Producto", data.nombre),
+        promptLine("Marca", data.marca),
+        promptLine("Categoría", data.categoria),
+        promptLine("Material", data.material),
+        promptLine("Color", data.color),
+        promptLine("Medidas", data.medidas),
+        promptLine("Modelo", data.modelo),
+        promptLine("Descripción pública", data.descripcion),
+        promptLine("Comentario adicional / ajuste manual", data.comentario)
+      ].filter(Boolean).join("
+");
 
       return `Ambientar este producto de forma realista, comercial y atractiva para ecommerce, manteniendo el producto como protagonista principal.
 
-SKU: ${record.sku}
-Producto: ${nombre}
-Marca: ${marca}
-Categoría: ${categoria}
-Material: ${material}
-Color: ${color}
-Medidas: ${medidas}
-Modelo: ${modelo}
-Descripción pública: ${descripcion}
-Comentario adicional / ajuste manual: ${comentario}
-
-Jerarquía de datos usada para este prompt:
-1. Modificación posterior del usuario.
-2. Información pública recuperada desde Falabella CL.
-3. Información base cargada por Excel o carga manual.
+${contextLines}
 
 Instrucciones:
 - Mantener forma, color, proporciones, materialidad y detalles reales del producto.
 - No cambiar logos, textos, estampados, diseño, textura ni colores principales.
-- Respetar especialmente material, color, medidas y categoría cuando estén disponibles.
+- Respetar material, color, medidas y categoría cuando estén disponibles.
 - Crear una escena limpia, moderna y coherente con una imagen comercial de retail.
 - Usar iluminación natural o de estudio suave.
 - Evitar fondos saturados, elementos distractores o composición poco realista.
@@ -3419,10 +3418,13 @@ Instrucciones:
     }
 
     function productDataBox(label, value, source, wide = false) {
+      const clean = String(value || "").trim();
+      if (!clean) return "";
+
       return `
         <div class="product-data-box ${wide ? "wide" : ""}">
-          <small>${escapeHtml(label)} · ${escapeHtml(sourceLabel(source))}</small>
-          <span>${escapeHtml(value || "No indicado")}</span>
+          <small>${escapeHtml(label)}</small>
+          <span>${escapeHtml(clean)}</span>
         </div>
       `;
     }
@@ -3431,14 +3433,25 @@ Instrucciones:
       const data = getResolvedProductData(record);
       const publicData = record.publicData || emptyPublicProductData();
       const statusNote = publicData?.found
-        ? `Fuente: Falabella CL${publicData.productUrl ? ` · ${publicData.productUrl}` : ""}${publicData.fetchedAt ? ` · Consultado: ${formatDate(publicData.fetchedAt)}` : ""}`
-        : "La página usará datos base mientras no exista información pública recuperada.";
+        ? `Datos complementados desde Falabella CL${publicData.fetchedAt ? ` · ${formatDate(publicData.fetchedAt)}` : ""}`
+        : "Se usarán solo los datos disponibles del SKU.";
+      const boxes = [
+        productDataBox("Producto", data.nombre, data.sources.nombre, true),
+        productDataBox("Marca", data.marca, data.sources.marca),
+        productDataBox("Categoría", data.categoria, data.sources.categoria),
+        productDataBox("Material", data.material, data.sources.material),
+        productDataBox("Color", data.color, data.sources.color),
+        productDataBox("Medidas", data.medidas, data.sources.medidas),
+        productDataBox("Modelo", data.modelo, data.sources.modelo),
+        productDataBox("Vendedor", data.vendedor, data.sources.vendedor),
+        productDataBox("Comentario", data.comentario, data.sources.comentario, true)
+      ].filter(Boolean).join("");
 
       return `
         <section class="product-data-panel">
           <div class="product-data-head">
             <div>
-              <h3>Información usada para el prompt</h3>
+              <h3>Datos del producto</h3>
               <small>${escapeHtml(statusNote)}</small>
             </div>
             <div class="panel-title-actions">
@@ -3447,17 +3460,7 @@ Instrucciones:
             </div>
           </div>
 
-          <div class="product-data-grid">
-            ${productDataBox("Producto", data.nombre, data.sources.nombre, true)}
-            ${productDataBox("Marca", data.marca, data.sources.marca)}
-            ${productDataBox("Categoría", data.categoria, data.sources.categoria)}
-            ${productDataBox("Material", data.material, data.sources.material)}
-            ${productDataBox("Color", data.color, data.sources.color)}
-            ${productDataBox("Medidas", data.medidas, data.sources.medidas)}
-            ${productDataBox("Modelo", data.modelo, data.sources.modelo)}
-            ${productDataBox("Vendedor", data.vendedor, data.sources.vendedor)}
-            ${productDataBox("Comentario", data.comentario, data.sources.comentario, true)}
-          </div>
+          ${boxes ? `<div class="product-data-grid">${boxes}</div>` : `<div class="empty" style="padding:14px;">No hay datos complementarios disponibles.</div>`}
         </section>
       `;
     }
@@ -3622,8 +3625,6 @@ Instrucciones:
           <div class="info-box"><small>Prioridad</small><span>${priorityLabel(record.prioridad)}</span></div>
           <div class="info-box"><small>Veces rechazadas</small><span>${escapeHtml(getRejectionCount(record))}</span></div>
           <div class="info-box"><small>Editor asignado</small><span>${escapeHtml(record.editor || "Sin asignar")}</span></div>
-          <div class="info-box"><small>Medidas</small><span>${escapeHtml(record.medidas || "No indicado")}</span></div>
-          <div class="info-box" style="grid-column:1/-1;"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
           ${record.motivoRechazo ? `
             <div class="info-box" style="grid-column:1/-1;">
               <small>Motivo rechazo</small>
@@ -3647,7 +3648,7 @@ Instrucciones:
 
         ${skuEditPanel}
 
-        <div class="prompt-source-note">Prompt generado con prioridad: edición manual &gt; información pública Falabella CL &gt; carga inicial Excel/manual.</div>
+        <div class="prompt-source-note">Prompt limpio: solo incluye campos con información disponible. Prioridad: edición manual &gt; Falabella CL &gt; carga inicial.</div>
         <div class="prompt-box">${escapeHtml(buildPrompt(record))}</div>
 
         <div class="actions">
