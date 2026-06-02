@@ -1721,7 +1721,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.3</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.4</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1941,7 +1941,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.3";
+    const APP_VERSION = "V1.1.4";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2586,8 +2586,7 @@ const firebaseConfig = {
         promptLine("Modelo", data.modelo),
         promptLine("Descripción pública", data.descripcion),
         promptLine("Comentario adicional / ajuste manual", data.comentario)
-      ].filter(Boolean).join("
-");
+      ].filter(Boolean).join("\n");
 
       return `Ambientar este producto de forma realista, comercial y atractiva para ecommerce, manteniendo el producto como protagonista principal.
 
