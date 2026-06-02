@@ -1396,6 +1396,121 @@
       line-height: 1.45;
     }
 
+
+    .review-image-options {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .review-image-option {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 9px;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .review-image-option input {
+      width: 17px;
+      height: 17px;
+      margin-top: 1px;
+      accent-color: var(--greenFalabella);
+    }
+
+    .review-image-option strong {
+      display: block;
+      color: var(--text);
+      word-break: break-word;
+      margin-bottom: 2px;
+    }
+
+    .review-image-option small {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .image-review-state {
+      display: inline-flex;
+      margin-top: 5px;
+      border-radius: 999px;
+      padding: 4px 7px;
+      font-size: 10px;
+      font-weight: 900;
+      background: rgba(250, 204, 21, .17);
+      color: #ca8a04;
+      border: 1px solid rgba(250, 204, 21, .32);
+    }
+
+    .image-review-state.rejected {
+      background: rgba(239, 68, 68, .13);
+      color: var(--red);
+      border-color: rgba(239, 68, 68, .25);
+    }
+
+    .image-review-state.approved {
+      background: rgba(34, 197, 94, .14);
+      color: var(--green);
+      border-color: rgba(34, 197, 94, .28);
+    }
+
+    #aiProgressModal.image-modal:not(.hidden) {
+      inset: auto;
+      right: 18px;
+      bottom: 18px;
+      z-index: 90;
+      width: min(420px, calc(100vw - 36px));
+      min-height: 0;
+      background: transparent;
+      padding: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    #aiProgressModal .image-modal-content {
+      width: 100%;
+      height: auto;
+      min-height: 0;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid rgba(143, 202, 0, .28);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    #aiProgressModal .image-modal-title {
+      color: var(--text);
+    }
+
+    .metrics-filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .metrics-filter select {
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 10px;
+      outline: none;
+      font-weight: 900;
+      font-size: 12px;
+    }
+
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .top-right { width: 100%; justify-content: space-between; }
@@ -1421,7 +1536,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.0.6</span></h1>
+          <h1>Flujo IA <span class="version">V1.1</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1435,6 +1550,7 @@
           <option>Fernando</option>
           <option>Marcos</option>
           <option>Mica</option>
+          <option>Valentina</option>
           <option>Kathe</option>
           <option>Cesar</option>
           <option>Michelle</option>
@@ -1607,7 +1723,7 @@
         </div>
 
         <div class="ai-progress-note">
-          Se generarán 2 opciones y luego pasarán automáticamente a revisión.
+          Se generarán 2 opciones y luego pasarán automáticamente a revisión. Puedes seguir usando la página mientras termina el proceso.
         </div>
       </div>
     </div>
@@ -1639,7 +1755,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.0.6";
+    const APP_VERSION = "V1.1";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1692,6 +1808,7 @@ const firebaseConfig = {
     const USER_ROLES = {
       Pablo: ROLES.ADMIN,
       Mica: ROLES.ADMIN,
+      Valentina: ROLES.ADMIN,
       Mylena: ROLES.RETOCADOR,
       Fernanda: ROLES.RETOCADOR,
       Fernando: ROLES.RETOCADOR,
@@ -1723,6 +1840,7 @@ const firebaseConfig = {
     let uploadProcessing = false;
     let reviewProcessing = false;
     let aiGenerating = false;
+    let metricsPeriod = "week";
     const pos1Cache = {};
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -2813,13 +2931,13 @@ Instrucciones:
         return;
       }
 
-      const adminEditOpen = isAdmin() && editingWorkId === record.id;
+      const skuEditOpen = hasActiveUserAccess() && editingWorkId === record.id;
       const priorityOptionsHtml = [1, 2, 3, 4, 5].map(value => {
         const label = { 1: "Urgente", 2: "Alta", 3: "Media", 4: "Baja", 5: "Normal" }[value];
         return `<option value="${value}" ${priorityNumber(record.prioridad) === value ? "selected" : ""}>${value} · ${label}</option>`;
       }).join("");
 
-      const adminEditPanel = isAdmin() && adminEditOpen ? `
+      const skuEditPanel = skuEditOpen ? `
         <div class="admin-edit-panel">
           <h3>Editar detalles del SKU</h3>
           <div class="manual-grid">
@@ -2881,7 +2999,7 @@ Instrucciones:
           </div>
         </div>
 
-        ${adminEditPanel}
+        ${skuEditPanel}
 
         <div class="prompt-box">${escapeHtml(record.prompt)}</div>
 
@@ -2889,13 +3007,13 @@ Instrucciones:
           ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
           ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">Generar por IA (2 opciones)</button>` : ""}
-          ${isAdmin() ? `<button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${adminEditOpen ? "Cerrar edición" : "Editar detalles"}</button>` : ""}
+          <button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${skuEditOpen ? "Cerrar edición" : "Editar detalles"}</button>
         </div>
       `;
     }
 
     function toggleAdminSkuEdit(id) {
-      if (!requireAdmin()) return;
+      if (!requireUser()) return;
       editingWorkId = editingWorkId === id ? "" : id;
       renderWorkDetail();
     }
@@ -2906,7 +3024,7 @@ Instrucciones:
     }
 
     async function saveAdminSkuDetails(id) {
-      if (!requireAdmin()) return;
+      if (!requireUser()) return;
 
       const record = getRecord(id);
       if (!record) return;
@@ -3017,7 +3135,7 @@ Instrucciones:
           <strong>Cómo debe venir el nombre:</strong> el archivo debe venir solo como <strong>SKU_VISTA</strong>, por ejemplo
           <strong>123456789_005.jpg</strong>, <strong>123456789_006.png</strong> o <strong>123456789_07.webp</strong>.
           No debe incluir palabras adicionales antes ni después del SKU. Formatos permitidos: JPG, JPEG, PNG, WEBP y AVIF. Máximo 10 MB por imagen y máximo 3 imágenes por SKU.
-          Si un SKU fue rechazado, se mantiene asignado al mismo editor y al volver a subirlo pasa nuevamente a revisión.
+          Si un SKU fue rechazado, se mantiene asignado al mismo editor. Al subir una corrección, la entrega anterior se reemplaza y pasa nuevamente a revisión.
         </div>
 
         <div class="preview">${preview}</div>
@@ -3190,6 +3308,13 @@ Instrucciones:
         });
 
         for (const group of groups.values()) {
+          if (group.record.estado === STATUS.RECHAZADO && getRecordImages(group.record).length) {
+            // Al reenviar una corrección, las imágenes rechazadas anteriores se reemplazan por la nueva entrega.
+            await deleteImagesFromStorage(group.record);
+            group.record.generatedImages = [];
+            group.record.generatedImageName = "";
+          }
+
           const existingCount = getRecordImages(group.record).length;
           const availableSlots = Math.max(MAX_IMAGES_PER_SKU - existingCount, 0);
 
@@ -3416,12 +3541,55 @@ Instrucciones:
       return url;
     }
 
+
+    function reviewImageStatus(image) {
+      return String(image?.reviewStatus || "pending").toLowerCase();
+    }
+
+    function isImageRejected(image) {
+      return reviewImageStatus(image) === "rejected";
+    }
+
+    function extractViewNumberFromFileName(fileName) {
+      const base = fileNameWithoutExtension(fileName || "");
+      const match = base.match(/_([0-9]{1,3})$/);
+      return match ? Number(match[1]) : 9999;
+    }
+
+    function sortRecordImages(images) {
+      return [...(images || [])].sort((a, b) => {
+        const va = extractViewNumberFromFileName(a.name);
+        const vb = extractViewNumberFromFileName(b.name);
+        if (va !== vb) return va - vb;
+        return String(a.name || "").localeCompare(String(b.name || ""), "es");
+      });
+    }
+
+    function approvedDownloadFileName(sku, index) {
+      const suffix = String(index + 5).padStart(3, "0");
+      return `${safeFileName(sku)}_${suffix}.jpg`;
+    }
+
+    function selectedImageIdsForRecord(recordId) {
+      return [...document.querySelectorAll(".review-image-check:checked")]
+        .filter(input => input.dataset.recordId === recordId)
+        .map(input => input.value);
+    }
+
+    function getReviewableImages(record) {
+      return sortRecordImages(getRecordImages(record).filter(image => !isImageRejected(image)));
+    }
+
+    function getRejectedImages(record) {
+      return sortRecordImages(getRecordImages(record).filter(image => isImageRejected(image)));
+    }
+
     async function getReviewComparisonHtml(record) {
-      const images = getRecordImages(record);
+      const images = getReviewableImages(record);
       const pos1Url = await getPos1Url(record);
 
       if (!images.length) {
-        return `<div class="compare-empty">Sin imagen subida</div>`;
+        return `<div class="compare-empty">Sin imagen subida para revisión</div>`;
       }
 
       const pairs = [];
@@ -3479,6 +3647,26 @@ Instrucciones:
 
       for (const record of list) {
         const comparison = await getReviewComparisonHtml(record);
+        const images = getReviewableImages(record);
+        const imageOptions = images.length ? `
+          <div class="review-image-options">
+            ${images.map((image, index) => `
+              <label class="review-image-option">
+                <input
+                  type="checkbox"
+                  class="review-image-check"
+                  data-record-id="${escapeHtml(record.id)}"
+                  value="${escapeHtml(image.id || image.path || image.name || String(index))}"
+                  checked
+                >
+                <span>
+                  <strong>${escapeHtml(image.name || `Imagen ${index + 1}`)}</strong>
+                  <small>Si queda marcada, se aprobará y al descargar quedará como ${escapeHtml(record.sku)}_${String(index + 5).padStart(3, "0")}.jpg</small>
+                </span>
+              </label>
+            `).join("")}
+          </div>
+        ` : `<div class="empty" style="padding:12px;">No hay imágenes listas para aprobar.</div>`;
 
         htmlParts.push(`
           <article class="review-card">
@@ -3494,17 +3682,23 @@ Instrucciones:
                 Marca: ${escapeHtml(record.marca || "Sin marca")}<br>
                 Editor: ${escapeHtml(record.editor || "Sin editor")}<br>
                 Veces rechazadas: ${escapeHtml(getRejectionCount(record))}<br>
-                Subido: ${formatDate(record.uploadedAt) || "-"}
+                Subido: ${formatDate(record.uploadedAt) || "-"}<br>
+                Vistas para revisión: ${images.length}
+              </div>
+
+              <div class="reject-box">
+                <label>Fotos aprobadas</label>
+                ${imageOptions}
               </div>
 
               <div class="reject-box">
                 <label>Motivo de rechazo</label>
-                <textarea id="rejectReason_${escapeHtml(record.id)}" placeholder="Escribe aquí el motivo si esta imagen se rechaza."></textarea>
+                <textarea id="rejectReason_${escapeHtml(record.id)}" placeholder="Obligatorio si dejas alguna vista sin aprobar o si rechazas todo el SKU."></textarea>
               </div>
 
               <div class="actions">
-                <button class="btn btn-primary btn-small" onclick="approveOne('${record.id}')">Aprobar y descargar</button>
-                <button class="btn btn-red btn-small" onclick="rejectOne('${record.id}')">Rechazar</button>
+                <button class="btn btn-primary btn-small" onclick="approveOne('${record.id}')">Aprobar seleccionadas y descargar</button>
+                <button class="btn btn-red btn-small" onclick="rejectOne('${record.id}')">Rechazar todas</button>
               </div>
             </div>
 
@@ -3698,8 +3892,8 @@ Instrucciones:
       return d;
     }
 
-    function createReviewEvents(record, result) {
-      const images = getRecordImages(record);
+    function createReviewEvents(record, result, imagesInput = null) {
+      const images = Array.isArray(imagesInput) ? imagesInput : getRecordImages(record);
       const reviewedAt = new Date().toISOString();
       const editor = record.editor || "Sin editor";
       const revisor = currentUser() || "Sin revisor";
@@ -4052,6 +4246,120 @@ Instrucciones:
       `;
     }
 
+    function setMetricsPeriod(period) {
+      metricsPeriod = period || "week";
+      renderMetricsPanel();
+    }
+
+    function metricPeriodRange(period) {
+      const now = new Date();
+      const end = new Date(now);
+      end.setHours(23, 59, 59, 999);
+
+      if (period === "day") {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        return { start, end, label: `Día ${formatDate(start.toISOString()).split(" ")[0]}` };
+      }
+
+      if (period === "month") {
+        const start = startOfMonth(now);
+        return { start, end, label: `Mes desde ${formatDate(start.toISOString()).split(" ")[0]}` };
+      }
+
+      if (period === "all") {
+        return { start: null, end: null, label: "Histórico completo" };
+      }
+
+      const start = startOfWeek(now);
+      return { start, end: endOfWeekFromStart(start), label: `Semana ${formatDate(start.toISOString()).split(" ")[0]} a ${formatDate(endOfWeekFromStart(start).toISOString()).split(" ")[0]}` };
+    }
+
+    function metricEventMatchesPeriod(event, period) {
+      const { start, end } = metricPeriodRange(period);
+      if (!start || !end) return true;
+      return dateInRange(event.fecha, start, end);
+    }
+
+    function calculateSimpleMetrics(period = metricsPeriod) {
+      const workEvents = collectWorkEvents().filter(event => metricEventMatchesPeriod(event, period));
+      const reviewEvents = collectReviewMetricEvents().filter(event => metricEventMatchesPeriod(event, period));
+      const byUser = {};
+
+      Object.keys(USER_ROLES)
+        .filter(user => USER_ROLES[user] === ROLES.RETOCADOR || USER_ROLES[user] === ROLES.ADMIN)
+        .forEach(user => {
+          byUser[user] = { user, worked: 0, approved: 0, rejected: 0, reviewed: 0 };
+        });
+
+      function ensure(user) {
+        const safe = user || "Sin editor";
+        if (!byUser[safe]) byUser[safe] = { user: safe, worked: 0, approved: 0, rejected: 0, reviewed: 0 };
+        return byUser[safe];
+      }
+
+      workEvents.forEach(event => {
+        ensure(event.retocador).worked += 1;
+      });
+
+      reviewEvents.forEach(event => {
+        const item = ensure(event.retocador);
+        item.reviewed += 1;
+        if (event.result === "approved") item.approved += 1;
+        if (event.result === "rejected") item.rejected += 1;
+      });
+
+      const rows = Object.values(byUser)
+        .map(row => ({
+          ...row,
+          rejectionRate: row.reviewed ? Math.round((row.rejected / row.reviewed) * 1000) / 10 : 0
+        }))
+        .sort((a, b) => b.worked - a.worked || b.reviewed - a.reviewed || a.user.localeCompare(b.user, "es"));
+
+      const totals = rows.reduce((acc, row) => {
+        acc.worked += row.worked;
+        acc.approved += row.approved;
+        acc.rejected += row.rejected;
+        acc.reviewed += row.reviewed;
+        return acc;
+      }, { worked: 0, approved: 0, rejected: 0, reviewed: 0 });
+
+      totals.rejectionRate = totals.reviewed ? Math.round((totals.rejected / totals.reviewed) * 1000) / 10 : 0;
+
+      return { rows, totals, workEvents, reviewEvents, ...metricPeriodRange(period) };
+    }
+
+    function renderSimpleMetricBars(rows) {
+      const max = Math.max(...rows.map(row => row.reviewed), 1);
+      return `
+        <div class="metric-legend">
+          <span><i class="legend-dot legend-approved"></i>Aprobadas</span>
+          <span><i class="legend-dot legend-rejected"></i>Rechazadas</span>
+        </div>
+        <div class="bar-list">
+          ${rows.map(row => {
+            const reviewed = row.reviewed;
+            const approvedWidth = reviewed ? (row.approved / reviewed) * 100 : 0;
+            const rejectedWidth = reviewed ? (row.rejected / reviewed) * 100 : 0;
+            const trackWidth = Math.round((reviewed / max) * 100);
+
+            return `
+              <div class="bar-row">
+                <div>${escapeHtml(row.user)}</div>
+                <div class="bar-track">
+                  <div class="bar-stack" style="width:${trackWidth}%">
+                    <div class="bar-fill-approved" style="width:${approvedWidth}%"></div>
+                    <div class="bar-fill-rejected" style="width:${rejectedWidth}%"></div>
+                  </div>
+                </div>
+                <div class="bar-counts">${row.approved} / ${row.rejected}</div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
     function renderMetricsPanel() {
       const panel = document.getElementById("metricsPanel");
       if (!panel) return;
@@ -4064,79 +4372,62 @@ Instrucciones:
 
       if (panel.classList.contains("hidden")) return;
 
-      const { rows, weekStart, weekEnd, monthStart } = metricRows();
-      const totalWeekSkus = rows.reduce((sum, row) => sum + row.weekSkus, 0);
-      const totalWeekImages = rows.reduce((sum, row) => sum + row.weekImages, 0);
-      const totalWeekApproved = rows.reduce((sum, row) => sum + row.weekApproved, 0);
-      const totalWeekRejected = rows.reduce((sum, row) => sum + row.weekRejected, 0);
-      const totalMonthSkus = rows.reduce((sum, row) => sum + row.monthSkus, 0);
-      const totalMonthImages = rows.reduce((sum, row) => sum + row.monthImages, 0);
-      const totalMonthApproved = rows.reduce((sum, row) => sum + row.monthApproved, 0);
-      const totalMonthRejected = rows.reduce((sum, row) => sum + row.monthRejected, 0);
-      const totalAllSkus = rows.reduce((sum, row) => sum + row.totalSkus, 0);
-      const totalAllApproved = rows.reduce((sum, row) => sum + row.totalApproved, 0);
-      const totalAllRejected = rows.reduce((sum, row) => sum + row.totalRejected, 0);
+      const { rows, totals, label } = calculateSimpleMetrics(metricsPeriod);
 
       panel.innerHTML = `
         <div class="metrics-title">
           <div>
             <h3>Métricas de producción</h3>
-            <div class="master-muted">Cuenta SKUs trabajados e imágenes/vistas revisadas por retocador. Semana de lunes ${formatDate(weekStart.toISOString()).split(" ")[0]} a domingo ${formatDate(weekEnd.toISOString()).split(" ")[0]} · Mes desde ${formatDate(monthStart.toISOString()).split(" ")[0]}</div>
+            <div class="master-muted">Vista limpia solicitada: fotos trabajadas, aprobadas, rechazadas y tasa de rechazo. Tasa = rechazadas / revisadas.</div>
           </div>
           <div class="panel-title-actions">
+            <div class="metrics-filter">
+              <span class="master-muted">Periodo</span>
+              <select onchange="setMetricsPeriod(this.value)">
+                <option value="day" ${metricsPeriod === "day" ? "selected" : ""}>Día</option>
+                <option value="week" ${metricsPeriod === "week" ? "selected" : ""}>Semana</option>
+                <option value="month" ${metricsPeriod === "month" ? "selected" : ""}>Mes</option>
+                <option value="all" ${metricsPeriod === "all" ? "selected" : ""}>Histórico</option>
+              </select>
+            </div>
             <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Descargar métricas Excel</button>
             <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar métricas</button>
           </div>
         </div>
 
+        <div class="master-muted" style="margin-bottom:12px;">${escapeHtml(label)}</div>
+
         <div class="metrics-grid">
-          <div class="metric-card"><small>SKUs trabajados semana</small><strong>${totalWeekSkus}</strong></div>
-          <div class="metric-card"><small>Imágenes subidas semana</small><strong>${totalWeekImages}</strong></div>
-          <div class="metric-card"><small>Aprobadas semana</small><strong>${totalWeekApproved}</strong></div>
-          <div class="metric-card"><small>Rechazadas semana</small><strong>${totalWeekRejected}</strong></div>
-          <div class="metric-card"><small>SKUs trabajados mes</small><strong>${totalMonthSkus}</strong></div>
-          <div class="metric-card"><small>Imágenes subidas mes</small><strong>${totalMonthImages}</strong></div>
-          <div class="metric-card"><small>Aprobadas mes</small><strong>${totalMonthApproved}</strong></div>
-          <div class="metric-card"><small>Rechazadas mes</small><strong>${totalMonthRejected}</strong></div>
-          <div class="metric-card"><small>SKUs histórico</small><strong>${totalAllSkus}</strong></div>
-          <div class="metric-card"><small>Total revisadas</small><strong>${totalAllApproved + totalAllRejected}</strong></div>
+          <div class="metric-card"><small>Fotos trabajadas</small><strong>${totals.worked}</strong></div>
+          <div class="metric-card"><small>Fotos aprobadas</small><strong>${totals.approved}</strong></div>
+          <div class="metric-card"><small>Fotos rechazadas</small><strong>${totals.rejected}</strong></div>
+          <div class="metric-card"><small>Tasa de rechazo</small><strong>${totals.rejectionRate}%</strong></div>
         </div>
 
-        <div class="metrics-title"><h3>Comparativo semanal · aprobadas/rechazadas</h3></div>
-        ${renderStackedBarChart(rows, "week")}
-
-        <div class="metrics-title"><h3>Comparativo mensual · aprobadas/rechazadas</h3></div>
-        ${renderStackedBarChart(rows, "month")}
+        <div class="metrics-title"><h3>Aprobadas / rechazadas por usuario</h3></div>
+        ${renderSimpleMetricBars(rows)}
 
         <div class="master-table-wrap">
           <table class="metrics-table">
             <thead>
               <tr>
-                <th>Retocador</th>
-                <th>SKUs semana</th>
-                <th>Imgs semana</th>
-                <th>Aprobadas semana</th>
-                <th>Rechazadas semana</th>
-                <th>SKUs mes</th>
-                <th>Imgs mes</th>
-                <th>Aprobadas mes</th>
-                <th>Rechazadas mes</th>
-                <th>SKUs histórico</th>
+                <th>Usuario</th>
+                <th>Fotos trabajadas</th>
+                <th>Fotos aprobadas</th>
+                <th>Fotos rechazadas</th>
+                <th>Fotos revisadas</th>
+                <th>Tasa rechazo</th>
               </tr>
             </thead>
             <tbody>
               ${rows.map(row => `
                 <tr>
                   <td><strong>${escapeHtml(row.user)}</strong></td>
-                  <td>${row.weekSkus}</td>
-                  <td>${row.weekImages}</td>
-                  <td>${row.weekApproved}</td>
-                  <td>${row.weekRejected}</td>
-                  <td>${row.monthSkus}</td>
-                  <td>${row.monthImages}</td>
-                  <td>${row.monthApproved}</td>
-                  <td>${row.monthRejected}</td>
-                  <td>${row.totalSkus}</td>
+                  <td>${row.worked}</td>
+                  <td>${row.approved}</td>
+                  <td>${row.rejected}</td>
+                  <td>${row.reviewed}</td>
+                  <td>${row.rejectionRate}%</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -4195,76 +4486,86 @@ Instrucciones:
     function downloadMetricsExcel() {
       if (!requireAdmin()) return;
 
-      const { rows, workEvents, reviewEvents, weekStart, weekEnd, monthStart } = metricRows();
-      const now = new Date();
-      const monthEnd = new Date(now);
-      monthEnd.setHours(23, 59, 59, 999);
+      const periods = [
+        { key: "day", label: "Día" },
+        { key: "week", label: "Semana" },
+        { key: "month", label: "Mes" },
+        { key: "all", label: "Histórico" }
+      ];
 
-      const summaryRows = rows.map(row => ({
-        Retocador: row.user,
-        "SKUs trabajados semana": row.weekSkus,
-        "Imágenes subidas semana": row.weekImages,
-        "Aprobadas semana": row.weekApproved,
-        "Rechazadas semana": row.weekRejected,
-        "SKUs aprobados semana": row.weekApprovedSkus,
-        "SKUs rechazados semana": row.weekRejectedSkus,
-        "SKUs trabajados mes": row.monthSkus,
-        "Imágenes subidas mes": row.monthImages,
-        "Aprobadas mes": row.monthApproved,
-        "Rechazadas mes": row.monthRejected,
-        "SKUs aprobados mes": row.monthApprovedSkus,
-        "SKUs rechazados mes": row.monthRejectedSkus,
-        "SKUs trabajados histórico": row.totalSkus,
-        "Imágenes subidas histórico": row.totalImages,
-        "Aprobadas histórico": row.totalApproved,
-        "Rechazadas histórico": row.totalRejected
+      const summaryRows = [];
+
+      periods.forEach(period => {
+        const data = calculateSimpleMetrics(period.key);
+        summaryRows.push({
+          Periodo: period.label,
+          Rango: data.label,
+          Usuario: "TOTAL",
+          "Fotos trabajadas": data.totals.worked,
+          "Fotos aprobadas": data.totals.approved,
+          "Fotos rechazadas": data.totals.rejected,
+          "Fotos revisadas": data.totals.reviewed,
+          "Tasa rechazo": `${data.totals.rejectionRate}%`
+        });
+
+        data.rows.forEach(row => {
+          summaryRows.push({
+            Periodo: period.label,
+            Rango: data.label,
+            Usuario: row.user,
+            "Fotos trabajadas": row.worked,
+            "Fotos aprobadas": row.approved,
+            "Fotos rechazadas": row.rejected,
+            "Fotos revisadas": row.reviewed,
+            "Tasa rechazo": `${row.rejectionRate}%`
+          });
+        });
+      });
+
+      const workRows = collectWorkEvents().map(event => ({
+        _fechaOrden: event.fecha,
+        Fecha: formatDate(event.fecha),
+        Mes: event.mes,
+        SKU: event.sku,
+        Marca: event.marca,
+        Archivo: event.archivo,
+        Usuario: event.retocador,
+        "Subido por": event.subidoPor,
+        Tipo: "Foto trabajada",
+        Resultado: "Trabajada",
+        Revisor: "",
+        "Estado actual": event.estadoActual
       }));
 
-      const weekSkuRows = groupSkuWorkRows(workEvents, weekStart, weekEnd);
-      const monthSkuRows = groupSkuWorkRows(workEvents, monthStart, monthEnd);
+      const reviewRows = collectReviewMetricEvents().map(event => ({
+        _fechaOrden: event.fecha,
+        Fecha: formatDate(event.fecha),
+        Mes: event.mes,
+        SKU: event.sku,
+        Marca: event.marca,
+        Archivo: event.archivo,
+        Usuario: event.retocador,
+        "Subido por": "",
+        Tipo: "Revisión",
+        Resultado: event.resultado,
+        Revisor: event.revisor,
+        "Estado actual": event.estadoActual
+      }));
 
-      const workDetailRows = workEvents
-        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-        .map(event => ({
-          Fecha: formatDate(event.fecha),
-          Mes: event.mes,
-          SKU: event.sku,
-          Marca: event.marca,
-          Archivo: event.archivo,
-          Retocador: event.retocador,
-          "Subido por": event.subidoPor,
-          "Estado actual": event.estadoActual,
-          Tipo: event.tipo
-        }));
-
-      const reviewDetailRows = reviewEvents
-        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-        .map(event => ({
-          Fecha: formatDate(event.fecha),
-          Mes: event.mes,
-          SKU: event.sku,
-          Marca: event.marca,
-          Archivo: event.archivo,
-          Retocador: event.retocador,
-          Revisor: event.revisor,
-          Resultado: event.resultado,
-          "Estado actual": event.estadoActual
-        }));
+      const detailRows = [...workRows, ...reviewRows]
+        .sort((a, b) => new Date(b._fechaOrden || 0) - new Date(a._fechaOrden || 0))
+        .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Semana", Valor: `${formatDate(weekStart.toISOString()).split(" ")[0]} a ${formatDate(weekEnd.toISOString()).split(" ")[0]}` },
-        { Campo: "Mes", Valor: `${formatDate(monthStart.toISOString()).split(" ")[0]} a ${formatDate(monthEnd.toISOString()).split(" ")[0]}` },
-        { Campo: "Criterio semana", Valor: "Lunes a domingo" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1" },
+        { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
 
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(infoRows)), "Periodo");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(summaryRows)), "Resumen usuarios");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(weekSkuRows)), "SKUs semana");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(monthSkuRows)), "SKUs mes");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(workDetailRows)), "Detalle trabajo");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(reviewDetailRows)), "Detalle revisión");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(infoRows)), "Info");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(summaryRows)), "Resumen");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(detailRows)), "Detalle completo");
       XLSX.writeFile(workbook, `metricas_flujo_ia_${dateStamp()}.xlsx`);
     }
 
@@ -4285,6 +4586,66 @@ Instrucciones:
 
       usedNames.add(candidate);
       return candidate;
+    }
+
+    function canvasToBlob(canvas, type = "image/jpeg", quality = 0.92) {
+      return new Promise(resolve => {
+        canvas.toBlob(blob => resolve(blob), type, quality);
+      });
+    }
+
+    function loadImageFromBlob(blob) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve(img);
+        };
+        img.onerror = error => {
+          URL.revokeObjectURL(url);
+          reject(error);
+        };
+        img.src = url;
+      });
+    }
+
+    async function resizeImageBlobToJpeg(blob, size = 1500) {
+      try {
+        const img = await loadImageFromBlob(blob);
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+
+        const scale = Math.min(size / img.naturalWidth, size / img.naturalHeight);
+        const width = Math.round(img.naturalWidth * scale);
+        const height = Math.round(img.naturalHeight * scale);
+        const x = Math.round((size - width) / 2);
+        const y = Math.round((size - height) / 2);
+        ctx.drawImage(img, x, y, width, height);
+
+        const resized = await canvasToBlob(canvas, "image/jpeg", 0.92);
+        return resized || blob;
+      } catch (error) {
+        console.warn("No se pudo redimensionar a 1500x1500, se usará el archivo original:", error);
+        return blob;
+      }
+    }
+
+    function imageIdentifier(image, index = 0) {
+      return String(image?.id || image?.path || image?.name || index);
+    }
+
+    function selectedApprovalForRecord(record) {
+      const selectedIds = new Set(selectedImageIdsForRecord(record.id));
+      const images = getReviewableImages(record);
+      const approved = images.filter((image, index) => selectedIds.has(imageIdentifier(image, index)));
+      const rejected = images.filter((image, index) => !selectedIds.has(imageIdentifier(image, index)));
+      return { approved, rejected, images };
     }
 
     async function approveOne(id) {
@@ -4371,33 +4732,53 @@ Instrucciones:
       }
 
       const selectedRecords = ids.map(getRecord).filter(Boolean);
-      const validRecords = selectedRecords.filter(record => getRecordImages(record).length);
+      const approvalPlans = selectedRecords.map(record => ({
+        record,
+        ...selectedApprovalForRecord(record)
+      })).filter(plan => plan.images.length);
 
-      if (!validRecords.length) {
-        alert("No hay imágenes para descargar.");
+      if (!approvalPlans.length) {
+        alert("No hay imágenes para revisar o descargar.");
+        return;
+      }
+
+      const withoutApproved = approvalPlans.filter(plan => !plan.approved.length).map(plan => plan.record.sku);
+      if (withoutApproved.length) {
+        alert(`Selecciona al menos una foto aprobada para: ${withoutApproved.join(", ")}. Si quieres rechazar todo, usa el botón Rechazar.`);
+        return;
+      }
+
+      const missingReason = approvalPlans
+        .filter(plan => plan.rejected.length && !getReviewReason(plan.record.id))
+        .map(plan => plan.record.sku);
+
+      if (missingReason.length) {
+        alert(`Hay fotos sin aprobar en ${missingReason.join(", ")}. Escribe un motivo de rechazo para que vuelvan a trabajo.`);
         return;
       }
 
       reviewProcessing = true;
 
       try {
-        toast("Preparando descarga...");
+        toast("Preparando descarga 1500x1500...");
 
         const zip = new JSZip();
         let totalFiles = 0;
-
         const usedZipNames = new Set();
+        const now = new Date().toISOString();
 
-        for (const record of validRecords) {
-          const images = getRecordImages(record);
+        for (const plan of approvalPlans) {
+          const record = plan.record;
 
-          for (const image of images) {
+          for (let index = 0; index < plan.approved.length; index++) {
+            const image = plan.approved[index];
             if (!image.path) continue;
 
             const blob = await downloadStorageBlob(image.path);
-            const baseName = image.name || `${record.sku}_${totalFiles + 1}.jpg`;
-            const flatName = uniqueZipFileName(baseName, record.sku, usedZipNames);
-            zip.file(flatName, blob);
+            const resizedBlob = await resizeImageBlobToJpeg(blob, 1500);
+            const fileName = approvedDownloadFileName(record.sku, index);
+            const flatName = uniqueZipFileName(fileName, record.sku, usedZipNames);
+            zip.file(flatName, resizedBlob);
             totalFiles++;
           }
         }
@@ -4410,27 +4791,58 @@ Instrucciones:
         const zipBlob = await zip.generateAsync({ type: "blob" });
         saveAs(zipBlob, `aprobadas_flujo_ia_${dateStamp()}.zip`);
 
-        for (const record of validRecords) {
-          const imageNames = getRecordImages(record).map(img => img.name).join(", ");
-          createReviewEvents(record, "approved");
-          await deleteImagesFromStorage(record);
+        for (const plan of approvalPlans) {
+          const record = plan.record;
+          const approvedNames = plan.approved.map(img => img.name).join(", ");
+          const rejectedNames = plan.rejected.map(img => img.name).join(", ");
+          const reason = getReviewReason(record.id);
 
-          record.estado = STATUS.DESCARGADO;
+          createReviewEvents(record, "approved", plan.approved);
+          if (plan.rejected.length) createReviewEvents(record, "rejected", plan.rejected);
+
+          for (const image of plan.approved) {
+            if (!image.path) continue;
+            try {
+              await deleteObject(storageRef(storage, image.path));
+            } catch (error) {
+              console.warn("No se pudo borrar imagen aprobada:", image.path, error);
+            }
+          }
+
+          const rejectedImages = plan.rejected.map(image => ({
+            ...image,
+            reviewStatus: "rejected",
+            rejectionReason: reason,
+            rejectedAt: now,
+            rejectedBy: currentUser()
+          }));
+
           record.revisor = currentUser();
-          record.motivoRechazo = "";
-          record.lastImageNames = imageNames;
-          record.generatedImages = [];
+          record.reviewedAt = now;
+          record.updatedAt = now;
+          record.lastImageNames = [approvedNames, rejectedNames].filter(Boolean).join(" | Rechazadas: ");
           record.generatedImageId = "";
-          record.generatedImageName = "";
-          record.reviewedAt = new Date().toISOString();
-          record.downloadedAt = new Date().toISOString();
-          record.updatedAt = new Date().toISOString();
+          record.generatedImageName = rejectedImages.map(img => img.name).join(", ");
+
+          if (rejectedImages.length) {
+            record.estado = STATUS.RECHAZADO;
+            record.motivoRechazo = reason;
+            record.version = Number(record.version || 1) + 1;
+            record.rejectionCount = getRejectionCount(record) + 1;
+            record.generatedImages = rejectedImages;
+          } else {
+            record.estado = STATUS.DESCARGADO;
+            record.motivoRechazo = "";
+            record.generatedImages = [];
+            record.generatedImageName = "";
+            record.downloadedAt = now;
+          }
 
           await saveRecord(record);
         }
 
         await refresh();
-        toast(`${totalFiles} imagen(es) descargadas y borradas del storage.`);
+        toast(`${totalFiles} imagen(es) aprobada(s) descargadas en 1500x1500 desde vista 005.`);
       } catch (error) {
         console.error(error);
         alert("No se pudo aprobar/descargar. Revisa permisos de Storage o conexión.");
@@ -4449,14 +4861,15 @@ Instrucciones:
 
       try {
         const ids = Object.keys(reasonById || {});
+        const now = new Date().toISOString();
 
         for (const id of ids) {
           const record = getRecord(id);
           if (!record) continue;
 
-          const imageNames = getRecordImages(record).map(img => img.name).join(", ");
-          createReviewEvents(record, "rejected");
-          await deleteImagesFromStorage(record);
+          const images = getReviewableImages(record);
+          const imageNames = images.map(img => img.name).join(", ");
+          createReviewEvents(record, "rejected", images);
 
           record.estado = STATUS.RECHAZADO;
           record.revisor = currentUser();
@@ -4464,20 +4877,26 @@ Instrucciones:
           record.version = Number(record.version || 1) + 1;
           record.rejectionCount = getRejectionCount(record) + 1;
           record.lastImageNames = imageNames;
-          record.generatedImages = [];
+          record.generatedImages = images.map(image => ({
+            ...image,
+            reviewStatus: "rejected",
+            rejectionReason: reasonById[id],
+            rejectedAt: now,
+            rejectedBy: currentUser()
+          }));
           record.generatedImageId = "";
-          record.generatedImageName = "";
-          record.reviewedAt = new Date().toISOString();
-          record.updatedAt = new Date().toISOString();
+          record.generatedImageName = record.generatedImages.map(img => img.name).join(", ");
+          record.reviewedAt = now;
+          record.updatedAt = now;
 
           await saveRecord(record);
         }
 
         await refresh();
-        toast(`${ids.length} SKU(s) rechazados. Imágenes borradas del storage.`);
+        toast(`${ids.length} SKU(s) rechazados. Las imágenes vuelven a SKU a trabajar.`);
       } catch (error) {
         console.error(error);
-        alert("No se pudo rechazar o borrar imágenes. Revisa permisos de Storage.");
+        alert("No se pudo rechazar. Revisa permisos de Firestore o conexión.");
       } finally {
         reviewProcessing = false;
       }
@@ -4608,7 +5027,7 @@ Instrucciones:
     }
 
     function getRecordImages(record) {
-      if (Array.isArray(record.generatedImages) && record.generatedImages.length) return record.generatedImages;
+      if (Array.isArray(record?.generatedImages) && record.generatedImages.length) return sortRecordImages(record.generatedImages);
       return [];
     }
 
@@ -4646,10 +5065,12 @@ Instrucciones:
           try {
             const url = await getDownloadURL(storageRef(storage, image.path));
 
+            const state = isImageRejected(image) ? `<span class="image-review-state rejected">Rechazada</span>` : `<span class="image-review-state">En revisión</span>`;
+
             items.push(`
               <div class="preview-item">
                 <img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Imagen generada")}">
-                <div class="preview-name">${escapeHtml(image.name || "")}</div>
+                <div class="preview-name">${escapeHtml(image.name || "")}${state}</div>
               </div>
             `);
           } catch (error) {
@@ -4883,6 +5304,7 @@ Instrucciones:
       cancelAdminSkuEdit,
       saveAdminSkuDetails,
       toggleMetricsPanel,
+      setMetricsPeriod,
       downloadMetricsExcel,
       toggleNotificationsPanel,
       markNotificationsRead,
