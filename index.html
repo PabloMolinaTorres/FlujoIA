@@ -1721,7 +1721,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.2</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.5</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1766,7 +1766,7 @@
 
   <main class="main">
     <div id="lockMessage" class="lock-message">
-      Configura Firebase y selecciona tu usuario para comenzar.
+      Cargando Flujo IA...
     </div>
 
     <section id="stats" class="stats"></section>
@@ -1923,6 +1923,26 @@
     </div>
   </div>
 
+  <script>
+    window.__flujoIaModuleLoaded = false;
+
+    window.addEventListener("DOMContentLoaded", () => {
+      setTimeout(() => {
+        if (window.__flujoIaModuleLoaded) return;
+
+        const lockMessage = document.getElementById("lockMessage");
+        if (!lockMessage) return;
+
+        lockMessage.innerHTML = `
+          <strong>No se pudo iniciar Flujo IA.</strong><br>
+          Revisa que el archivo esté publicado en GitHub Pages o abierto con internet,
+          y luego actualiza con <strong>Ctrl + F5</strong>.
+          Si sigue igual, abre la consola con <strong>F12</strong> y copia el primer error rojo.
+        `;
+      }, 2500);
+    });
+  </script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
@@ -1941,7 +1961,9 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.2";
+    window.__flujoIaModuleLoaded = true;
+
+    const APP_VERSION = "V1.1.5";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2050,8 +2072,8 @@ const firebaseConfig = {
       if (!configured) {
         firebaseReady = false;
         document.getElementById("lockMessage").innerHTML = `
-          Falta configurar Firebase en el código.<br>
-          Reemplaza el bloque <strong>firebaseConfig</strong> con los datos de tu proyecto Firebase.
+          No se encontró una configuración válida de Firebase.<br>
+          Revisa el bloque <strong>firebaseConfig</strong> dentro del HTML.
         `;
         return;
       }
@@ -2391,8 +2413,8 @@ const firebaseConfig = {
       if (lockMessage) {
         if (!firebaseReady) {
           lockMessage.innerHTML = `
-            Falta configurar Firebase o no se pudo conectar.<br>
-            Revisa la configuración del proyecto Firebase.
+            No se pudo conectar a Firebase.<br>
+            Revisa internet, firebaseConfig y que estés usando la versión publicada actualizada.
           `;
         } else if (!user) {
           lockMessage.innerHTML = `
@@ -2503,9 +2525,37 @@ const firebaseConfig = {
       }
     }
 
+    function isMissingProductValue(value) {
+      const text = String(value ?? "").trim();
+      if (!text) return true;
+
+      const normalized = normalizeText(text).replace(/\s+/g, " ");
+
+      return normalized === "sin" ||
+        normalized.startsWith("sin ") ||
+        normalized.startsWith("sin-") ||
+        normalized.startsWith("sin_") ||
+        normalized === "no indicado" ||
+        normalized === "no indicada" ||
+        normalized === "no disponible" ||
+        normalized === "no aplica" ||
+        normalized === "n/a" ||
+        normalized === "na" ||
+        normalized === "-";
+    }
+
+    function hasMeaningfulProductValue(value) {
+      return !isMissingProductValue(value);
+    }
+
+    function cleanProductValue(value) {
+      const text = String(value ?? "").trim();
+      return hasMeaningfulProductValue(text) ? text : "";
+    }
+
     function firstFilled(...values) {
       for (const value of values) {
-        const text = String(value ?? "").trim();
+        const text = cleanProductValue(value);
         if (text) return text;
       }
       return "";
@@ -2513,10 +2563,10 @@ const firebaseConfig = {
 
     function getFieldSource(record, field) {
       migrateProductData(record);
-      if (String(record.manualOverrides?.[field] || "").trim()) return "manual";
-      if (String(record.publicData?.[field] || "").trim()) return "public";
-      if (String(record.baseData?.[field] || "").trim()) return "base";
-      if (String(record?.[field] || "").trim()) return "legacy";
+      if (hasMeaningfulProductValue(record.manualOverrides?.[field])) return "manual";
+      if (hasMeaningfulProductValue(record.publicData?.[field])) return "public";
+      if (hasMeaningfulProductValue(record.baseData?.[field])) return "base";
+      if (hasMeaningfulProductValue(record?.[field])) return "legacy";
       return "empty";
     }
 
@@ -2566,28 +2616,26 @@ const firebaseConfig = {
 
     function buildPrompt(record) {
       const data = getResolvedProductData(record);
-      const nombre = data.nombre || "sin nombre público recuperado";
-      const marca = data.marca || "sin marca indicada";
-      const categoria = data.categoria || "sin categoría indicada";
-      const material = data.material || "sin material indicado";
-      const color = data.color || "sin color indicado";
-      const medidas = data.medidas || "sin medidas indicadas";
-      const modelo = data.modelo || "sin modelo indicado";
-      const descripcion = data.descripcion || "sin descripción pública recuperada";
-      const comentario = data.comentario || "sin comentario adicional";
+      const productLines = [
+        { label: "SKU", value: record.sku, required: true },
+        { label: "Producto", value: data.nombre },
+        { label: "Marca", value: data.marca },
+        { label: "Categoría", value: data.categoria },
+        { label: "Material", value: data.material },
+        { label: "Color", value: data.color },
+        { label: "Medidas", value: data.medidas },
+        { label: "Modelo", value: data.modelo },
+        { label: "Descripción pública", value: data.descripcion },
+        { label: "Comentario adicional / ajuste manual", value: data.comentario }
+      ]
+        .filter(item => item.required || hasMeaningfulProductValue(item.value))
+        .map(item => `${item.label}: ${cleanProductValue(item.value)}`)
+        .join("
+");
 
       return `Ambientar este producto de forma realista, comercial y atractiva para ecommerce, manteniendo el producto como protagonista principal.
 
-SKU: ${record.sku}
-Producto: ${nombre}
-Marca: ${marca}
-Categoría: ${categoria}
-Material: ${material}
-Color: ${color}
-Medidas: ${medidas}
-Modelo: ${modelo}
-Descripción pública: ${descripcion}
-Comentario adicional / ajuste manual: ${comentario}
+${productLines}
 
 Jerarquía de datos usada para este prompt:
 1. Modificación posterior del usuario.
@@ -3419,46 +3467,55 @@ Instrucciones:
     }
 
     function productDataBox(label, value, source, wide = false) {
+      const cleanValue = cleanProductValue(value);
+      if (!cleanValue) return "";
+
       return `
         <div class="product-data-box ${wide ? "wide" : ""}">
           <small>${escapeHtml(label)} · ${escapeHtml(sourceLabel(source))}</small>
-          <span>${escapeHtml(value || "No indicado")}</span>
+          <span>${escapeHtml(cleanValue)}</span>
         </div>
       `;
     }
 
-    function renderProductDataPanel(record) {
-      const data = getResolvedProductData(record);
-      const publicData = record.publicData || emptyPublicProductData();
-      const statusNote = publicData?.found
-        ? `Fuente: Falabella CL${publicData.productUrl ? ` · ${publicData.productUrl}` : ""}${publicData.fetchedAt ? ` · Consultado: ${formatDate(publicData.fetchedAt)}` : ""}`
-        : "La página usará datos base mientras no exista información pública recuperada.";
+    function detailInfoBox(label, value, source = "", wide = false) {
+      const cleanValue = cleanProductValue(value);
+      if (!cleanValue) return "";
+      const sourceText = source && source !== "empty" ? ` · ${sourceLabel(source)}` : "";
 
       return `
-        <section class="product-data-panel">
-          <div class="product-data-head">
-            <div>
-              <h3>Información usada para el prompt</h3>
-              <small>${escapeHtml(statusNote)}</small>
-            </div>
-            <div class="panel-title-actions">
-              ${publicLookupLabel(record)}
-              <button class="btn btn-soft btn-small" onclick="fetchPublicProductInfo('${record.id}', true)">Actualizar info pública</button>
-            </div>
-          </div>
+        <div class="info-box" ${wide ? 'style="grid-column:1/-1;"' : ""}>
+          <small>${escapeHtml(label)}${escapeHtml(sourceText)}</small>
+          <span>${escapeHtml(cleanValue)}</span>
+        </div>
+      `;
+    }
 
-          <div class="product-data-grid">
-            ${productDataBox("Producto", data.nombre, data.sources.nombre, true)}
-            ${productDataBox("Marca", data.marca, data.sources.marca)}
-            ${productDataBox("Categoría", data.categoria, data.sources.categoria)}
-            ${productDataBox("Material", data.material, data.sources.material)}
-            ${productDataBox("Color", data.color, data.sources.color)}
-            ${productDataBox("Medidas", data.medidas, data.sources.medidas)}
-            ${productDataBox("Modelo", data.modelo, data.sources.modelo)}
-            ${productDataBox("Vendedor", data.vendedor, data.sources.vendedor)}
-            ${productDataBox("Comentario", data.comentario, data.sources.comentario, true)}
-          </div>
-        </section>
+    function renderResolvedProductInfoBoxes(record) {
+      const data = getResolvedProductData(record);
+
+      return [
+        detailInfoBox("Producto", data.nombre, data.sources.nombre, true),
+        detailInfoBox("Marca", data.marca, data.sources.marca),
+        detailInfoBox("Categoría", data.categoria, data.sources.categoria),
+        detailInfoBox("Material", data.material, data.sources.material),
+        detailInfoBox("Color", data.color, data.sources.color),
+        detailInfoBox("Medidas", data.medidas, data.sources.medidas),
+        detailInfoBox("Modelo", data.modelo, data.sources.modelo),
+        detailInfoBox("Vendedor", data.vendedor, data.sources.vendedor),
+        detailInfoBox("Descripción pública", data.descripcion, data.sources.descripcion, true),
+        detailInfoBox("Comentario", data.comentario, data.sources.comentario, true)
+      ].filter(Boolean).join("");
+    }
+
+    function renderProductDataPanel(record) {
+      const productBoxes = renderResolvedProductInfoBoxes(record);
+      if (!productBoxes) return "";
+
+      return `
+        <div class="product-data-grid">
+          ${productBoxes}
+        </div>
       `;
     }
 
@@ -3622,8 +3679,7 @@ Instrucciones:
           <div class="info-box"><small>Prioridad</small><span>${priorityLabel(record.prioridad)}</span></div>
           <div class="info-box"><small>Veces rechazadas</small><span>${escapeHtml(getRejectionCount(record))}</span></div>
           <div class="info-box"><small>Editor asignado</small><span>${escapeHtml(record.editor || "Sin asignar")}</span></div>
-          <div class="info-box"><small>Medidas</small><span>${escapeHtml(record.medidas || "No indicado")}</span></div>
-          <div class="info-box" style="grid-column:1/-1;"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
+          ${renderResolvedProductInfoBoxes(record)}
           ${record.motivoRechazo ? `
             <div class="info-box" style="grid-column:1/-1;">
               <small>Motivo rechazo</small>
@@ -3640,14 +3696,16 @@ Instrucciones:
             <small>Previsualización POS1</small>
             <strong>${escapeHtml(record.sku)}_1</strong>
             <span>Referencia actual del producto para trabajar la ambientación.</span>
+            <div class="panel-title-actions" style="justify-content:flex-start;margin-top:10px;">
+              ${publicLookupLabel(record)}
+              <button class="btn btn-soft btn-small" onclick="fetchPublicProductInfo('${record.id}', true)">Actualizar info pública</button>
+            </div>
           </div>
         </div>
 
-        ${renderProductDataPanel(record)}
-
         ${skuEditPanel}
 
-        <div class="prompt-source-note">Prompt generado con prioridad: edición manual &gt; información pública Falabella CL &gt; carga inicial Excel/manual.</div>
+        <div class="prompt-source-note">Prompt generado con datos disponibles: edición manual &gt; información pública Falabella CL &gt; carga inicial Excel/manual. Los campos vacíos o que empiezan con “sin” no se agregan.</div>
         <div class="prompt-box">${escapeHtml(buildPrompt(record))}</div>
 
         <div class="actions">
@@ -3681,13 +3739,13 @@ Instrucciones:
       record.manualOverrides = {
         ...emptyProductData(),
         ...record.manualOverrides,
-        nombre: document.getElementById("editNombre")?.value.trim() || "",
-        marca: document.getElementById("editMarca")?.value.trim() || "",
-        categoria: document.getElementById("editCategoria")?.value.trim() || "",
-        material: document.getElementById("editMaterial")?.value.trim() || "",
-        color: document.getElementById("editColor")?.value.trim() || "",
-        medidas: document.getElementById("editMedidas")?.value.trim() || "",
-        comentario: document.getElementById("editComentario")?.value.trim() || ""
+        nombre: cleanProductValue(document.getElementById("editNombre")?.value || ""),
+        marca: cleanProductValue(document.getElementById("editMarca")?.value || ""),
+        categoria: cleanProductValue(document.getElementById("editCategoria")?.value || ""),
+        material: cleanProductValue(document.getElementById("editMaterial")?.value || ""),
+        color: cleanProductValue(document.getElementById("editColor")?.value || ""),
+        medidas: cleanProductValue(document.getElementById("editMedidas")?.value || ""),
+        comentario: cleanProductValue(document.getElementById("editComentario")?.value || "")
       };
       record.prioridad = priorityNumber(document.getElementById("editPrioridad")?.value || record.prioridad);
       syncLegacyProductFields(record);
