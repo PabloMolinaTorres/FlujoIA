@@ -470,6 +470,7 @@
     .status-aprobado { background: rgba(34, 197, 94, .14); color: var(--green); border-color: rgba(34, 197, 94, .28); }
     .status-rechazado { background: rgba(239, 68, 68, .13); color: var(--red); border-color: rgba(239, 68, 68, .25); }
     .status-descargado { background: rgba(34, 197, 94, .22); color: var(--green); border-color: rgba(34, 197, 94, .36); }
+    .status-descartado { background: rgba(107, 114, 128, .16); color: var(--muted); border-color: rgba(107, 114, 128, .32); }
 
     .detail-content {
       padding: 18px;
@@ -1338,6 +1339,82 @@
       50% { transform: scale(1.035); }
     }
 
+    .notification-toast-stack {
+      position: fixed;
+      right: 18px;
+      bottom: 78px;
+      z-index: 75;
+      width: min(390px, calc(100vw - 36px));
+      display: grid;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .notification-toast-card {
+      pointer-events: auto;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--greenFalabella);
+      border-radius: 18px;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, .22);
+      padding: 13px;
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 10px;
+      align-items: start;
+      animation: notificationSlideIn .22s ease-out;
+    }
+
+    .notification-toast-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: rgba(143, 202, 0, .14);
+      color: var(--greenDark);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .notification-toast-body strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .notification-toast-body div {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      margin-bottom: 9px;
+    }
+
+    .notification-toast-actions {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+
+    .notification-toast-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    @keyframes notificationSlideIn {
+      from { transform: translateY(12px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
     .toast {
       position: fixed;
       right: 18px;
@@ -1536,7 +1613,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.1</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1706,6 +1783,7 @@
     </section>
   </main>
 
+  <div id="notificationToastStack" class="notification-toast-stack"></div>
   <div id="toast" class="toast"></div>
 
   <div id="aiProgressModal" class="image-modal hidden">
@@ -1755,7 +1833,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1";
+    const APP_VERSION = "V1.1.1";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1780,11 +1858,15 @@ const firebaseConfig = {
       REVISION: "En revisión",
       APROBADO: "Aprobado",
       RECHAZADO: "Rechazado",
-      DESCARGADO: "Descargado"
+      DESCARGADO: "Descargado",
+      DESCARTADO: "Descartado"
     };
 
     const SAVED_USER_KEY = "flujo_ia_current_user";
     const READ_NOTIFICATIONS_KEY = "flujo_ia_read_notifications";
+    const ALERTED_NOTIFICATIONS_KEY = "flujo_ia_alerted_notifications";
+    const NOTIFICATION_SOUND_KEY = "flujo_ia_notification_sound";
+    const BASE_DOCUMENT_TITLE = "Flujo IA";
     const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
     const ADMIN_PIN = "0000";
     const MAX_UPLOAD_FILES_PER_BATCH = 100;
@@ -2349,9 +2431,146 @@ Instrucciones:
       }
     }
 
-    function saveNotificationKeys(keys) {
+    function readAlertedNotificationKeys() {
+      try {
+        return JSON.parse(localStorage.getItem(ALERTED_NOTIFICATIONS_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function saveAlertedNotificationKeys(keys) {
       const unique = [...new Set(keys)].slice(-600);
-      localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(unique));
+      localStorage.setItem(ALERTED_NOTIFICATIONS_KEY, JSON.stringify(unique));
+    }
+
+    function notificationSoundIsEnabled() {
+      return localStorage.getItem(NOTIFICATION_SOUND_KEY) !== "off";
+    }
+
+    function toggleNotificationSound() {
+      const enabled = !notificationSoundIsEnabled();
+      localStorage.setItem(NOTIFICATION_SOUND_KEY, enabled ? "on" : "off");
+      toast(enabled ? "Sonido de notificaciones activado." : "Sonido de notificaciones desactivado.");
+      renderNotifications();
+    }
+
+    function playNotificationSound() {
+      if (!notificationSoundIsEnabled()) return;
+
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
+        gain.connect(ctx.destination);
+
+        [880, 1174].forEach((frequency, index) => {
+          const osc = ctx.createOscillator();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(frequency, now + index * 0.15);
+          osc.connect(gain);
+          osc.start(now + index * 0.15);
+          osc.stop(now + index * 0.15 + 0.18);
+        });
+
+        setTimeout(() => ctx.close().catch(() => {}), 800);
+      } catch (error) {
+        console.warn("El navegador bloqueó o no pudo reproducir el sonido:", error);
+      }
+    }
+
+    function updateDocumentNotificationTitle(unreadCount) {
+      document.title = unreadCount > 0 ? `(${unreadCount}) ${BASE_DOCUMENT_TITLE}` : BASE_DOCUMENT_TITLE;
+    }
+
+    function notificationTargetTab() {
+      const role = getUserRole();
+      if (role === ROLES.REVISOR) return "review";
+      if (role === ROLES.RETOCADOR) return "work";
+      return activeTab;
+    }
+
+    function openNotificationsPanel() {
+      const panel = document.getElementById("notificationPanel");
+      if (!panel) return;
+      panel.classList.remove("hidden");
+      renderNotifications();
+    }
+
+    function openNotificationTarget() {
+      const targetTab = notificationTargetTab();
+      if (targetTab && canAccessTab(targetTab)) setTab(targetTab);
+      openNotificationsPanel();
+    }
+
+    function summarizeUnreadNotifications(items) {
+      const role = getUserRole();
+      const approved = items.filter(item => item.type === "approved").length;
+      const rejected = items.filter(item => item.type === "rejected").length;
+      const review = items.filter(item => item.type === "review").length;
+
+      if (role === ROLES.REVISOR) {
+        return {
+          title: "Hay imágenes para revisar",
+          text: `${review} SKU(s) pendiente(s) de revisión en Flujo IA.`
+        };
+      }
+
+      const parts = [];
+      if (approved) parts.push(`${approved} aprobado(s)`);
+      if (rejected) parts.push(`${rejected} rechazado(s)`);
+
+      return {
+        title: "Tienes novedades en Flujo IA",
+        text: parts.length ? `SKU(s): ${parts.join(" · ")}.` : `${items.length} novedad(es) pendiente(s).`
+      };
+    }
+
+    function showNotificationToast(summary, unreadCount) {
+      const stack = document.getElementById("notificationToastStack");
+      if (!stack) return;
+
+      const card = document.createElement("div");
+      card.className = "notification-toast-card";
+      card.innerHTML = `
+        <div class="notification-toast-icon">🔔</div>
+        <div class="notification-toast-body">
+          <strong>${escapeHtml(summary.title)}</strong>
+          <div>${escapeHtml(summary.text)}</div>
+          <div class="notification-toast-actions">
+            <button class="btn btn-primary btn-small" onclick="openNotificationTarget()">Ver notificaciones</button>
+            <button class="btn btn-soft btn-small" onclick="markNotificationsRead(); this.closest('.notification-toast-card')?.remove();">Marcar leídas</button>
+          </div>
+        </div>
+        <button class="notification-toast-close" title="Cerrar" onclick="this.closest('.notification-toast-card')?.remove();">×</button>
+      `;
+
+      stack.prepend(card);
+      while (stack.children.length > 3) stack.lastElementChild.remove();
+
+      clearTimeout(card.notificationTimer);
+      card.notificationTimer = setTimeout(() => {
+        if (card && card.parentNode) card.remove();
+      }, unreadCount > 5 ? 11000 : 8500);
+    }
+
+    function alertNewUnreadNotifications(notifications, unreadItems) {
+      if (!unreadItems.length) return;
+
+      const alerted = new Set(readAlertedNotificationKeys());
+      const newItems = unreadItems.filter(item => !alerted.has(item.key));
+      if (!newItems.length) return;
+
+      saveAlertedNotificationKeys([...alerted, ...newItems.map(item => item.key)]);
+      const summary = summarizeUnreadNotifications(newItems);
+      showNotificationToast(summary, unreadItems.length);
+      playNotificationSound();
     }
 
     function notificationTimestamp(record) {
@@ -2420,22 +2639,29 @@ Instrucciones:
         badge.classList.add("hidden");
         badge.textContent = "0";
         panel.innerHTML = "";
+        updateDocumentNotificationTitle(0);
         return;
       }
 
       const notifications = buildNotificationsForCurrentUser();
       const read = new Set(readNotificationKeys());
-      const unread = notifications.filter(item => !read.has(item.key)).length;
+      const unreadItems = notifications.filter(item => !read.has(item.key));
+      const unread = unreadItems.length;
 
       badge.textContent = unread > 99 ? "99+" : String(unread);
       badge.classList.toggle("hidden", unread === 0);
+      updateDocumentNotificationTitle(unread);
+      alertNewUnreadNotifications(notifications, unreadItems);
 
       if (panel.classList.contains("hidden")) return;
 
       panel.innerHTML = `
         <div class="notification-head">
           <span>Notificaciones</span>
-          <button class="btn btn-soft btn-small" onclick="markNotificationsRead()">Marcar leídas</button>
+          <div style="display:flex; gap:7px; flex-wrap:wrap; justify-content:flex-end;">
+            <button class="btn btn-soft btn-small" onclick="toggleNotificationSound()">${notificationSoundIsEnabled() ? "Sonido: ON" : "Sonido: OFF"}</button>
+            <button class="btn btn-soft btn-small" onclick="markNotificationsRead()">Marcar leídas</button>
+          </div>
         </div>
         ${notifications.length ? `
           <div class="notification-list">
@@ -2462,6 +2688,8 @@ Instrucciones:
       const notifications = buildNotificationsForCurrentUser();
       const read = readNotificationKeys();
       saveNotificationKeys([...read, ...notifications.map(item => item.key)]);
+      updateDocumentNotificationTitle(0);
+      document.getElementById("notificationToastStack")?.replaceChildren();
       renderNotifications();
     }
 
@@ -2563,6 +2791,7 @@ Instrucciones:
       if (status === STATUS.APROBADO) cls = "status-aprobado";
       if (status === STATUS.RECHAZADO) cls = "status-rechazado";
       if (status === STATUS.DESCARGADO) cls = "status-descargado";
+      if (status === STATUS.DESCARTADO) cls = "status-descartado";
 
       return `<span class="pill ${cls}">${escapeHtml(status)}</span>`;
     }
@@ -2842,7 +3071,8 @@ Instrucciones:
         [STATUS.REVISION]: 0,
         [STATUS.APROBADO]: 0,
         [STATUS.RECHAZADO]: 0,
-        [STATUS.DESCARGADO]: 0
+        [STATUS.DESCARGADO]: 0,
+        [STATUS.DESCARTADO]: 0
       };
 
       records.forEach(record => {
@@ -3008,6 +3238,7 @@ Instrucciones:
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
           ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">Generar por IA (2 opciones)</button>` : ""}
           <button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${skuEditOpen ? "Cerrar edición" : "Editar detalles"}</button>
+          ${canAdminRemoveFromWork(record) ? `<button class="btn btn-red" onclick="adminRemoveSkuFromWork('${record.id}')">Quitar de SKU a trabajar</button>` : ""}
         </div>
       `;
     }
@@ -3040,6 +3271,45 @@ Instrucciones:
       editingWorkId = "";
       await refresh();
       toast(`SKU ${record.sku} actualizado.`);
+    }
+
+    function canAdminRemoveFromWork(record) {
+      return isAdmin() && record && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO].includes(record.estado);
+    }
+
+    async function adminRemoveSkuFromWork(id) {
+      if (!requireAdmin()) return;
+
+      const record = getRecord(id);
+      if (!record) return;
+
+      if (!canAdminRemoveFromWork(record)) {
+        alert("Este SKU no está disponible para quitar desde SKU a trabajar.");
+        return;
+      }
+
+      const confirmed = confirm(`Se quitará el SKU ${record.sku} de SKU a trabajar y quedará en el Master como Descartado.
+
+¿Continuar?`);
+      if (!confirmed) return;
+
+      const reason = prompt("Motivo opcional para dejar registro:", "") || "";
+      const now = new Date().toISOString();
+
+      record.estado = STATUS.DESCARTADO;
+      record.removedFromWork = true;
+      record.removedBy = currentUser();
+      record.removedAt = now;
+      record.removedReason = reason.trim();
+      record.updatedAt = now;
+
+      await saveRecord(record);
+
+      if (selectedWorkId === id) selectedWorkId = "";
+      if (selectedUploadId === id) selectedUploadId = "";
+
+      await refresh();
+      toast(`SKU ${record.sku} quitado de SKU a trabajar.`);
     }
 
     async function takeWork(id) {
@@ -3838,6 +4108,8 @@ Instrucciones:
                 <br>
                 Actualizado: ${formatDate(record.updatedAt)}
                 ${record.downloadedAt ? `<br>Descargado: ${formatDate(record.downloadedAt)}` : ""}
+                ${record.removedAt ? `<br>Descartado: ${formatDate(record.removedAt)} por ${escapeHtml(record.removedBy || "-")}` : ""}
+                ${record.removedReason ? `<br>Motivo descarte: ${escapeHtml(record.removedReason)}` : ""}
               </div>
             </td>
           </tr>
@@ -4367,6 +4639,7 @@ Instrucciones:
       if (!isAdmin()) {
         panel.classList.add("hidden");
         panel.innerHTML = "";
+        updateDocumentNotificationTitle(0);
         return;
       }
 
@@ -4557,7 +4830,7 @@ Instrucciones:
         .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.1" },
         { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
@@ -5307,7 +5580,11 @@ Instrucciones:
       setMetricsPeriod,
       downloadMetricsExcel,
       toggleNotificationsPanel,
+      openNotificationsPanel,
+      openNotificationTarget,
+      toggleNotificationSound,
       markNotificationsRead,
+      adminRemoveSkuFromWork,
       openImageModal,
       closeImageModal,
       generateAiOptions
