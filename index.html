@@ -1589,73 +1589,6 @@
     }
 
 
-    .product-data-panel {
-      background: var(--card2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px;
-      margin-bottom: 14px;
-      display: grid;
-      gap: 12px;
-    }
-
-    .product-data-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .product-data-head h3 {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 900;
-    }
-
-    .product-data-head small {
-      display: block;
-      margin-top: 3px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .product-data-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-
-    .product-data-box {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 11px;
-      min-width: 0;
-    }
-
-    .product-data-box small {
-      display: block;
-      color: var(--muted);
-      font-size: 10px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      margin-bottom: 5px;
-    }
-
-    .product-data-box span {
-      display: block;
-      font-size: 13px;
-      line-height: 1.35;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .product-data-box.wide {
-      grid-column: 1 / -1;
-    }
 
     .source-chip {
       display: inline-flex;
@@ -1688,13 +1621,6 @@
       background: rgba(239, 68, 68, .11);
     }
 
-    .prompt-source-note {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.4;
-      margin: -4px 0 14px;
-    }
-
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .top-right { width: 100%; justify-content: space-between; }
@@ -1707,7 +1633,6 @@
       .manual-grid { grid-template-columns: 1fr; }
       .manual-grid .wide { grid-column: span 1; }
       .info-grid { grid-template-columns: 1fr; }
-      .product-data-grid { grid-template-columns: 1fr; }
       .detail-preview { grid-template-columns: 1fr; }
       .detail-preview-frame { width: 100%; max-width: 220px; }
       .sku-list { max-height: none; }
@@ -1721,7 +1646,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.2</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.7</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1814,14 +1739,34 @@
             </select>
           </div>
 
+          <div class="field wide">
+            <label>Nombre</label>
+            <input id="manualNombre" placeholder="Ej: Florero decorativo" />
+          </div>
+
+          <div class="field">
+            <label>Material</label>
+            <input id="manualMaterial" placeholder="Ej: Cerámica" />
+          </div>
+
+          <div class="field">
+            <label>Color</label>
+            <input id="manualColor" placeholder="Ej: Beige" />
+          </div>
+
           <div class="field">
             <label>Medidas</label>
             <input id="manualMedidas" placeholder="Ej: 120 x 80 x 40 cm" />
           </div>
 
           <div class="field wide">
-            <label>Descripción / Comentario</label>
-            <textarea id="manualComentario" placeholder="Ej: Usar ambientación limpia, moderna y cálida."></textarea>
+            <label>Descripción</label>
+            <textarea id="manualDescripcion" placeholder="Descripción del producto, si existe."></textarea>
+          </div>
+
+          <div class="field wide">
+            <label>Comentarios</label>
+            <textarea id="manualComentario" placeholder="Ej: COLECCIÓN EARTH, ambientación limpia, moderna y cálida."></textarea>
           </div>
         </div>
 
@@ -1941,7 +1886,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.2";
+    const APP_VERSION = "V1.1.7";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2099,6 +2044,7 @@ const firebaseConfig = {
         record.rejectionCount = Math.max(Number(record.version || 1) - 1, 0);
       }
       migrateProductData(record);
+      syncLegacyProductFields(record);
       record.prompt = buildPrompt(record);
       if (!record.estado) record.estado = STATUS.PENDIENTE;
       if (!record.lastImageNames) record.lastImageNames = "";
@@ -2448,17 +2394,16 @@ const firebaseConfig = {
       });
     }
 
+    const PRODUCT_FIELDS = ["nombre", "marca", "descripcion", "material", "color", "medidas", "comentario"];
+
     function emptyProductData() {
       return {
         nombre: "",
         marca: "",
-        categoria: "",
         descripcion: "",
         material: "",
         color: "",
         medidas: "",
-        modelo: "",
-        vendedor: "",
         comentario: ""
       };
     }
@@ -2474,28 +2419,99 @@ const firebaseConfig = {
       };
     }
 
+    function isMissingInfoValue(value) {
+      const text = String(value ?? "").trim();
+      if (!text) return true;
+
+      const normalized = normalizeText(text).replace(/\s+/g, " ");
+      if (!normalized) return true;
+      if (normalized === "sin" || normalized.startsWith("sin ")) return true;
+
+      const missingValues = new Set([
+        "no indicado",
+        "no indicada",
+        "no indica",
+        "no disponible",
+        "no aplica",
+        "n/a",
+        "na",
+        "s/i",
+        "sin dato",
+        "sin datos",
+        "undefined",
+        "null",
+        "-"
+      ]);
+
+      return missingValues.has(normalized);
+    }
+
+    function cleanInfoValue(value) {
+      const text = String(value ?? "").trim();
+      return isMissingInfoValue(text) ? "" : text;
+    }
+
+    function firstFilled(...values) {
+      for (const value of values) {
+        const text = cleanInfoValue(value);
+        if (text) return text;
+      }
+      return "";
+    }
+
+    function displayInfoValue(value) {
+      const text = cleanInfoValue(value);
+      return text ? escapeHtml(text) : "&nbsp;";
+    }
+
+    function detailInfoBox(label, value, wide = false) {
+      return `
+        <div class="info-box" ${wide ? `style="grid-column:1/-1;"` : ""}>
+          <small>${escapeHtml(label)}</small>
+          <span>${displayInfoValue(value)}</span>
+        </div>
+      `;
+    }
+
     function migrateProductData(record) {
+      if (!record) return;
+
+      const legacyBase = {
+        ...emptyProductData(),
+        nombre: cleanInfoValue(record.nombre || record.nombreProducto || record.producto),
+        marca: cleanInfoValue(record.marca),
+        descripcion: cleanInfoValue(record.descripcion),
+        material: cleanInfoValue(record.material),
+        color: cleanInfoValue(record.color),
+        medidas: cleanInfoValue(record.medidas),
+        comentario: cleanInfoValue(record.comentario || record.comentarios)
+      };
+
       if (!record.baseData || typeof record.baseData !== "object") {
-        record.baseData = {
-          ...emptyProductData(),
-          marca: String(record.marca || "").trim(),
-          medidas: String(record.medidas || "").trim(),
-          comentario: String(record.comentario || "").trim()
-        };
+        record.baseData = legacyBase;
       } else {
         record.baseData = { ...emptyProductData(), ...record.baseData };
+        PRODUCT_FIELDS.forEach(field => {
+          record.baseData[field] = cleanInfoValue(record.baseData[field] || legacyBase[field]);
+        });
       }
 
       if (!record.publicData || typeof record.publicData !== "object") {
         record.publicData = emptyPublicProductData();
       } else {
         record.publicData = { ...emptyPublicProductData(), ...record.publicData };
+        PRODUCT_FIELDS.forEach(field => {
+          record.publicData[field] = cleanInfoValue(record.publicData[field]);
+        });
       }
 
       if (!record.manualOverrides || typeof record.manualOverrides !== "object") {
         record.manualOverrides = emptyProductData();
       } else {
         record.manualOverrides = { ...emptyProductData(), ...record.manualOverrides };
+        PRODUCT_FIELDS.forEach(field => {
+          record.manualOverrides[field] = cleanInfoValue(record.manualOverrides[field]);
+        });
       }
 
       if (!record.publicLookupStatus) {
@@ -2503,105 +2519,201 @@ const firebaseConfig = {
       }
     }
 
-    function firstFilled(...values) {
-      for (const value of values) {
-        const text = String(value ?? "").trim();
-        if (text) return text;
-      }
-      return "";
-    }
-
-    function getFieldSource(record, field) {
-      migrateProductData(record);
-      if (String(record.manualOverrides?.[field] || "").trim()) return "manual";
-      if (String(record.publicData?.[field] || "").trim()) return "public";
-      if (String(record.baseData?.[field] || "").trim()) return "base";
-      if (String(record?.[field] || "").trim()) return "legacy";
-      return "empty";
-    }
-
-    function sourceLabel(source) {
-      const labels = {
-        manual: "Editado por usuario",
-        public: "Falabella CL",
-        base: "Excel / carga inicial",
-        legacy: "Dato anterior",
-        empty: "Sin dato"
-      };
-      return labels[source] || source;
-    }
-
     function getResolvedProductData(record) {
       migrateProductData(record);
-      const fields = ["nombre", "marca", "categoria", "descripcion", "material", "color", "medidas", "modelo", "vendedor", "comentario"];
-      const data = {};
-      const sources = {};
 
-      fields.forEach(field => {
+      const data = {};
+      PRODUCT_FIELDS.forEach(field => {
         data[field] = firstFilled(
           record.manualOverrides?.[field],
           record.publicData?.[field],
           record.baseData?.[field],
           record[field]
         );
-        sources[field] = getFieldSource(record, field);
       });
 
-      return { ...data, sources };
+      return data;
     }
 
     function syncLegacyProductFields(record) {
-      const resolved = getResolvedProductData(record);
-      record.marca = resolved.marca || "";
-      record.medidas = resolved.medidas || "";
-      record.comentario = resolved.comentario || "";
-      record.nombreProducto = resolved.nombre || "";
-      record.categoria = resolved.categoria || "";
-      record.material = resolved.material || "";
-      record.color = resolved.color || "";
-      record.modelo = resolved.modelo || "";
-      record.prompt = buildPrompt(record);
+      const data = getResolvedProductData(record);
+      record.nombre = data.nombre || "";
+      record.nombreProducto = data.nombre || "";
+      record.marca = data.marca || "";
+      record.descripcion = data.descripcion || "";
+      record.material = data.material || "";
+      record.color = data.color || "";
+      record.medidas = data.medidas || "";
+      record.comentario = data.comentario || "";
       return record;
+    }
+
+    function publicLookupLabel(record) {
+      const status = record.publicLookupStatus || (record.publicData?.found ? "success" : "idle");
+      if (publicLookupProcessing && selectedWorkId === record.id) return `<span class="source-chip source-chip-warn">⏳ Buscando info pública...</span>`;
+      if (status === "success" && record.publicData?.found) return `<span class="source-chip source-chip-ok">✓ Info pública encontrada</span>`;
+      if (status === "not_found") return `<span class="source-chip source-chip-warn">Sin info pública útil</span>`;
+      if (status === "error") return `<span class="source-chip source-chip-error">Error info pública</span>`;
+      return `<span class="source-chip">Info pública no consultada</span>`;
+    }
+
+    function readAnyValue(source, aliases) {
+      if (!source || typeof source !== "object") return "";
+      const entries = Object.entries(source);
+
+      for (const alias of aliases) {
+        const normalizedAlias = normalizeHeader(alias);
+        const found = entries.find(([key]) => normalizeHeader(key) === normalizedAlias);
+        if (found) return found[1];
+      }
+
+      for (const alias of aliases) {
+        const normalizedAlias = normalizeHeader(alias);
+        const found = entries.find(([key]) => normalizeHeader(key).includes(normalizedAlias));
+        if (found) return found[1];
+      }
+
+      return "";
+    }
+
+    function normalizePublicProductInfo(payload) {
+      const data = payload && typeof payload === "object" ? payload : {};
+      const candidates = [data, data.product, data.productData, data.data, data.item, data.result]
+        .filter(item => item && typeof item === "object");
+
+      const read = aliases => {
+        for (const candidate of candidates) {
+          const value = readAnyValue(candidate, aliases);
+          const clean = cleanInfoValue(value);
+          if (clean) return clean;
+        }
+        return "";
+      };
+
+      const publicData = {
+        ...emptyPublicProductData(),
+        nombre: read(["nombre", "nombreProducto", "productName", "name", "title", "producto"]),
+        marca: read(["marca", "brand", "manufacturer"]),
+        descripcion: read(["descripcion", "description", "descripcionPublica", "longDescription", "shortDescription"]),
+        material: read(["material", "materiales"]),
+        color: read(["color", "colour"]),
+        medidas: read(["medidas", "medida", "dimensions", "dimension", "tamano", "tamaño"]),
+        comentario: "",
+        source: "Falabella CL",
+        productUrl: read(["productUrl", "url", "link", "pdpUrl"]),
+        fetchedAt: cleanInfoValue(data.fetchedAt) || new Date().toISOString(),
+        error: ""
+      };
+
+      publicData.found = Boolean(data.found || PRODUCT_FIELDS.some(field => hasUsefulInfo(publicData[field])));
+      return publicData;
+    }
+
+    function hasUsefulInfo(value) {
+      return Boolean(cleanInfoValue(value));
+    }
+
+    async function fetchPublicProductInfo(id, force = false, silent = false) {
+      if (!requireUser()) return false;
+
+      const record = getRecord(id);
+      if (!record) return false;
+
+      migrateProductData(record);
+
+      if (!force && ["success", "not_found"].includes(record.publicLookupStatus || "") && record.publicLookupUpdatedAt) {
+        return Boolean(record.publicData?.found);
+      }
+
+      if (!PRODUCT_INFO_BACKEND_URL || PRODUCT_INFO_BACKEND_URL.includes("TU-PROYECTO")) {
+        if (!silent) alert("Falta configurar PRODUCT_INFO_BACKEND_URL con el endpoint de Vercel.");
+        return false;
+      }
+
+      publicLookupProcessing = true;
+      record.publicLookupStatus = "loading";
+      renderWorkDetail();
+
+      try {
+        const url = `${PRODUCT_INFO_BACKEND_URL}?sku=${encodeURIComponent(record.sku)}`;
+        const response = await fetch(url, { method: "GET" });
+        const payload = await response.json().catch(() => ({}));
+        const now = new Date().toISOString();
+
+        if (!response.ok) {
+          throw new Error(payload.error || "No se pudo consultar la info pública del SKU.");
+        }
+
+        record.publicData = normalizePublicProductInfo({ ...payload, fetchedAt: payload.fetchedAt || now });
+        record.publicLookupStatus = record.publicData.found ? "success" : "not_found";
+        record.publicLookupUpdatedAt = now;
+        record.publicLookupBy = currentUser();
+        syncLegacyProductFields(record);
+        record.prompt = buildPrompt(record);
+        record.updatedAt = now;
+
+        await saveRecord(record);
+        await refresh();
+
+        if (!silent) {
+          toast(record.publicData.found ? `Info pública actualizada para ${record.sku}.` : `No se encontró info pública útil para ${record.sku}.`);
+        }
+
+        return Boolean(record.publicData.found);
+      } catch (error) {
+        console.error(error);
+        const now = new Date().toISOString();
+        record.publicLookupStatus = "error";
+        record.publicLookupUpdatedAt = now;
+        record.publicLookupBy = currentUser();
+        record.publicData = {
+          ...emptyPublicProductData(),
+          ...record.publicData,
+          found: false,
+          error: error.message || "Error desconocido",
+          fetchedAt: now
+        };
+        record.prompt = buildPrompt(record);
+        record.updatedAt = now;
+        await saveRecord(record).catch(() => {});
+        await refresh();
+
+        if (!silent) alert(error.message || "No se pudo consultar la info pública del SKU.");
+        return false;
+      } finally {
+        publicLookupProcessing = false;
+        renderWorkDetail();
+      }
     }
 
     function buildPrompt(record) {
       const data = getResolvedProductData(record);
-      const nombre = data.nombre || "sin nombre público recuperado";
-      const marca = data.marca || "sin marca indicada";
-      const categoria = data.categoria || "sin categoría indicada";
-      const material = data.material || "sin material indicado";
-      const color = data.color || "sin color indicado";
-      const medidas = data.medidas || "sin medidas indicadas";
-      const modelo = data.modelo || "sin modelo indicado";
-      const descripcion = data.descripcion || "sin descripción pública recuperada";
-      const comentario = data.comentario || "sin comentario adicional";
+      const promptDataLines = [
+        ["Nombre", data.nombre],
+        ["Marca", data.marca],
+        ["Descripción", data.descripcion],
+        ["Material", data.material],
+        ["Color", data.color],
+        ["Medidas", data.medidas],
+        ["Comentarios", data.comentario]
+      ]
+        .map(([label, value]) => [label, cleanInfoValue(value)])
+        .filter(([, value]) => value)
+        .map(([label, value]) => `${label}: ${value}`)
+        .join("\n");
 
       return `Ambientar este producto de forma realista, comercial y atractiva para ecommerce, manteniendo el producto como protagonista principal.
 
-SKU: ${record.sku}
-Producto: ${nombre}
-Marca: ${marca}
-Categoría: ${categoria}
-Material: ${material}
-Color: ${color}
-Medidas: ${medidas}
-Modelo: ${modelo}
-Descripción pública: ${descripcion}
-Comentario adicional / ajuste manual: ${comentario}
-
-Jerarquía de datos usada para este prompt:
-1. Modificación posterior del usuario.
-2. Información pública recuperada desde Falabella CL.
-3. Información base cargada por Excel o carga manual.
+SKU: ${record.sku}${promptDataLines ? `
+${promptDataLines}` : ""}
 
 Instrucciones:
 - Mantener forma, color, proporciones, materialidad y detalles reales del producto.
 - No cambiar logos, textos, estampados, diseño, textura ni colores principales.
-- Respetar especialmente material, color, medidas y categoría cuando estén disponibles.
 - Crear una escena limpia, moderna y coherente con una imagen comercial de retail.
 - Usar iluminación natural o de estudio suave.
 - Evitar fondos saturados, elementos distractores o composición poco realista.
-- La ambientación debe ayudar a entender el uso real del producto y mejorar su atractivo visual.
+- La ambientación debe ayudar a entender el uso del producto y mejorar su atractivo visual.
 - Resultado final profesional, ordenado y apto para publicación ecommerce.`;
     }
 
@@ -3066,12 +3178,16 @@ Instrucciones:
       return null;
     }
 
-    function createRecord({ sku, marca, medidas, comentario, prioridad }) {
+    function createRecord({ sku, nombre, marca, descripcion, material, color, medidas, comentario, prioridad }) {
       const baseData = {
         ...emptyProductData(),
-        marca: String(marca || "").trim(),
-        medidas: String(medidas || "").trim(),
-        comentario: String(comentario || "").trim()
+        nombre: cleanInfoValue(nombre),
+        marca: cleanInfoValue(marca),
+        descripcion: cleanInfoValue(descripcion),
+        material: cleanInfoValue(material),
+        color: cleanInfoValue(color),
+        medidas: cleanInfoValue(medidas),
+        comentario: cleanInfoValue(comentario)
       };
 
       const record = {
@@ -3083,7 +3199,12 @@ Instrucciones:
         publicLookupStatus: "idle",
         publicLookupUpdatedAt: "",
         publicLookupBy: "",
+        nombre: baseData.nombre,
+        nombreProducto: baseData.nombre,
         marca: baseData.marca,
+        descripcion: baseData.descripcion,
+        material: baseData.material,
+        color: baseData.color,
         medidas: baseData.medidas,
         comentario: baseData.comentario,
         prioridad: priorityNumber(prioridad),
@@ -3123,6 +3244,10 @@ Instrucciones:
     function clearManualForm() {
       document.getElementById("manualSku").value = "";
       document.getElementById("manualMarca").value = "";
+      document.getElementById("manualNombre").value = "";
+      document.getElementById("manualDescripcion").value = "";
+      document.getElementById("manualMaterial").value = "";
+      document.getElementById("manualColor").value = "";
       document.getElementById("manualMedidas").value = "";
       document.getElementById("manualComentario").value = "";
       document.getElementById("manualPrioridad").value = "5";
@@ -3133,6 +3258,10 @@ Instrucciones:
 
       const sku = document.getElementById("manualSku").value.trim();
       const marca = document.getElementById("manualMarca").value.trim();
+      const nombre = document.getElementById("manualNombre").value.trim();
+      const descripcion = document.getElementById("manualDescripcion").value.trim();
+      const material = document.getElementById("manualMaterial").value.trim();
+      const color = document.getElementById("manualColor").value.trim();
       const medidas = document.getElementById("manualMedidas").value.trim();
       const comentario = document.getElementById("manualComentario").value.trim();
       const prioridad = document.getElementById("manualPrioridad").value;
@@ -3152,7 +3281,7 @@ Instrucciones:
         return;
       }
 
-      const record = createRecord({ sku, marca, medidas, comentario, prioridad });
+      const record = createRecord({ sku, nombre, marca, descripcion, material, color, medidas, comentario, prioridad });
       records.push(record);
       selectedWorkId = record.id;
       await saveRecord(record);
@@ -3169,29 +3298,40 @@ Instrucciones:
         {
           SKU: "123456789",
           Marca: "Basement",
+          Prioridad: 1,
+          Nombre: "Florero decorativo",
+          Descripción: "Producto decorativo para interior.",
+          Material: "Cerámica",
+          Color: "Beige",
           Medidas: "120 x 80 x 40 cm",
-          "Descripción/Comentario": "Ambientación limpia, moderna y cálida.",
-          Prioridad: 1
+          Comentarios: "Ambientación limpia, moderna y cálida."
         },
         {
           SKU: "987654321",
           Marca: "La Martina",
+          Prioridad: 3,
+          Nombre: "",
+          Descripción: "",
+          Material: "",
+          Color: "",
           Medidas: "",
-          "Descripción/Comentario": "",
-          Prioridad: 3
+          Comentarios: ""
         }
       ];
 
-      const worksheet = XLSX.utils.json_to_sheet(rows, {
-        header: ["SKU", "Marca", "Medidas", "Descripción/Comentario", "Prioridad"]
-      });
+      const headers = ["SKU", "Marca", "Prioridad", "Nombre", "Descripción", "Material", "Color", "Medidas", "Comentarios"];
+      const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
 
       worksheet["!cols"] = [
         { wch: 18 },
         { wch: 22 },
-        { wch: 24 },
+        { wch: 12 },
+        { wch: 32 },
         { wch: 46 },
-        { wch: 12 }
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 24 },
+        { wch: 46 }
       ];
 
       const workbook = XLSX.utils.book_new();
@@ -3223,9 +3363,17 @@ Instrucciones:
         const first = rows[0];
         const skuCol = findColumn(first, ["sku", "codigo", "codigoproducto", "idproducto"]);
         const marcaCol = findColumn(first, ["marca", "brand", "proveedor"]);
-        const medidasCol = findColumn(first, ["medidas", "medida"]);
-        const comentarioCol = findColumn(first, ["descripcioncomentario", "comentario", "descripcion", "observacion", "observaciones", "detalle"]);
         const prioridadCol = findColumn(first, ["prioridad", "urgencia", "nivel"]);
+        const nombreCol = findColumn(first, ["nombre", "nombreproducto", "producto", "productname", "titulo"]);
+        let descripcionCol = findColumn(first, ["descripcion", "descripcionproducto", "descripcionpublica", "description"]);
+        const materialCol = findColumn(first, ["material", "materiales"]);
+        const colorCol = findColumn(first, ["color", "colour"]);
+        const medidasCol = findColumn(first, ["medidas", "medida", "dimension", "dimensiones", "tamano", "tamaño"]);
+        const comentarioCol = findColumn(first, ["comentarios", "comentario", "descripcioncomentario", "observacion", "observaciones", "detalle", "ajuste"]);
+
+        if (descripcionCol && comentarioCol && descripcionCol === comentarioCol) {
+          descripcionCol = null;
+        }
 
         const missing = [];
         if (!skuCol) missing.push("SKU");
@@ -3270,6 +3418,10 @@ Instrucciones:
           const record = createRecord({
             sku,
             marca,
+            nombre: nombreCol ? row[nombreCol] : "",
+            descripcion: descripcionCol ? row[descripcionCol] : "",
+            material: materialCol ? row[materialCol] : "",
+            color: colorCol ? row[colorCol] : "",
             medidas: medidasCol ? row[medidasCol] : "",
             comentario: comentarioCol ? row[comentarioCol] : "",
             prioridad: isValidPriority(prioridadRaw) ? prioridadRaw : 5
@@ -3409,138 +3561,6 @@ Instrucciones:
       el.innerHTML = list.map(record => renderSkuItem(record, selectedWorkId, "selectWork")).join("");
     }
 
-    function publicLookupLabel(record) {
-      const status = record.publicLookupStatus || (record.publicData?.found ? "success" : "idle");
-      if (publicLookupProcessing && selectedWorkId === record.id) return `<span class="source-chip source-chip-warn">⏳ Buscando en Falabella CL...</span>`;
-      if (status === "success" && record.publicData?.found) return `<span class="source-chip source-chip-ok">✓ Info pública encontrada</span>`;
-      if (status === "not_found") return `<span class="source-chip source-chip-warn">Sin datos públicos encontrados</span>`;
-      if (status === "error") return `<span class="source-chip source-chip-error">Error al consultar Falabella CL</span>`;
-      return `<span class="source-chip">Info pública no consultada</span>`;
-    }
-
-    function productDataBox(label, value, source, wide = false) {
-      return `
-        <div class="product-data-box ${wide ? "wide" : ""}">
-          <small>${escapeHtml(label)} · ${escapeHtml(sourceLabel(source))}</small>
-          <span>${escapeHtml(value || "No indicado")}</span>
-        </div>
-      `;
-    }
-
-    function renderProductDataPanel(record) {
-      const data = getResolvedProductData(record);
-      const publicData = record.publicData || emptyPublicProductData();
-      const statusNote = publicData?.found
-        ? `Fuente: Falabella CL${publicData.productUrl ? ` · ${publicData.productUrl}` : ""}${publicData.fetchedAt ? ` · Consultado: ${formatDate(publicData.fetchedAt)}` : ""}`
-        : "La página usará datos base mientras no exista información pública recuperada.";
-
-      return `
-        <section class="product-data-panel">
-          <div class="product-data-head">
-            <div>
-              <h3>Información usada para el prompt</h3>
-              <small>${escapeHtml(statusNote)}</small>
-            </div>
-            <div class="panel-title-actions">
-              ${publicLookupLabel(record)}
-              <button class="btn btn-soft btn-small" onclick="fetchPublicProductInfo('${record.id}', true)">Actualizar info pública</button>
-            </div>
-          </div>
-
-          <div class="product-data-grid">
-            ${productDataBox("Producto", data.nombre, data.sources.nombre, true)}
-            ${productDataBox("Marca", data.marca, data.sources.marca)}
-            ${productDataBox("Categoría", data.categoria, data.sources.categoria)}
-            ${productDataBox("Material", data.material, data.sources.material)}
-            ${productDataBox("Color", data.color, data.sources.color)}
-            ${productDataBox("Medidas", data.medidas, data.sources.medidas)}
-            ${productDataBox("Modelo", data.modelo, data.sources.modelo)}
-            ${productDataBox("Vendedor", data.vendedor, data.sources.vendedor)}
-            ${productDataBox("Comentario", data.comentario, data.sources.comentario, true)}
-          </div>
-        </section>
-      `;
-    }
-
-    async function fetchPublicProductInfo(id, force = false, silent = false) {
-      if (!requireUser()) return false;
-
-      const record = getRecord(id);
-      if (!record) return false;
-
-      migrateProductData(record);
-
-      if (!force && ["success", "not_found"].includes(record.publicLookupStatus || "") && record.publicLookupUpdatedAt) {
-        return Boolean(record.publicData?.found);
-      }
-
-      if (!PRODUCT_INFO_BACKEND_URL || PRODUCT_INFO_BACKEND_URL.includes("TU-PROYECTO")) {
-        if (!silent) alert("Falta configurar PRODUCT_INFO_BACKEND_URL con el endpoint de Vercel.");
-        return false;
-      }
-
-      publicLookupProcessing = true;
-      record.publicLookupStatus = "loading";
-      renderWorkDetail();
-
-      try {
-        const url = `${PRODUCT_INFO_BACKEND_URL}?sku=${encodeURIComponent(record.sku)}`;
-        const response = await fetch(url, { method: "GET" });
-        const data = await response.json().catch(() => ({}));
-        const now = new Date().toISOString();
-
-        if (!response.ok) {
-          throw new Error(data.error || "No se pudo consultar Falabella CL.");
-        }
-
-        record.publicData = {
-          ...emptyPublicProductData(),
-          ...data,
-          found: Boolean(data.found),
-          source: "Falabella CL",
-          fetchedAt: data.fetchedAt || now,
-          error: ""
-        };
-        record.publicLookupStatus = data.found ? "success" : "not_found";
-        record.publicLookupUpdatedAt = now;
-        record.publicLookupBy = currentUser();
-        syncLegacyProductFields(record);
-        record.updatedAt = now;
-
-        await saveRecord(record);
-        await refresh();
-
-        if (!silent) {
-          toast(data.found ? `Info pública recuperada para ${record.sku}.` : `No se encontró info pública para ${record.sku}.`);
-        }
-
-        return Boolean(data.found);
-      } catch (error) {
-        console.error(error);
-        const now = new Date().toISOString();
-        record.publicLookupStatus = "error";
-        record.publicLookupUpdatedAt = now;
-        record.publicLookupBy = currentUser();
-        record.publicData = {
-          ...emptyPublicProductData(),
-          ...record.publicData,
-          found: false,
-          error: error.message || "Error desconocido",
-          fetchedAt: now
-        };
-        record.prompt = buildPrompt(record);
-        record.updatedAt = now;
-        await saveRecord(record).catch(() => {});
-        await refresh();
-
-        if (!silent) alert(error.message || "No se pudo consultar Falabella CL.");
-        return false;
-      } finally {
-        publicLookupProcessing = false;
-        renderWorkDetail();
-      }
-    }
-
     function renderWorkDetail() {
       const el = document.getElementById("workDetail");
       if (!el) return;
@@ -3548,57 +3568,61 @@ Instrucciones:
       const record = getRecord(selectedWorkId);
 
       if (!record) {
-        el.innerHTML = `<div class="empty">Selecciona un SKU para ver el prompt y descargar sus imágenes.</div>`;
+        el.innerHTML = `<div class="empty">Selecciona un SKU para ver su detalle y descargar sus imágenes.</div>`;
         return;
       }
 
+      migrateProductData(record);
+      syncLegacyProductFields(record);
+      const data = getResolvedProductData(record);
+      const manual = record.manualOverrides || emptyProductData();
       const skuEditOpen = hasActiveUserAccess() && editingWorkId === record.id;
       const priorityOptionsHtml = [1, 2, 3, 4, 5].map(value => {
         const label = { 1: "Urgente", 2: "Alta", 3: "Media", 4: "Baja", 5: "Normal" }[value];
         return `<option value="${value}" ${priorityNumber(record.prioridad) === value ? "selected" : ""}>${value} · ${label}</option>`;
       }).join("");
 
-      const resolvedEditData = getResolvedProductData(record);
-      const editValue = field => record.manualOverrides?.[field] || "";
+      const editValue = field => cleanInfoValue(manual[field]);
+      const placeholderValue = field => data[field] || "";
 
       const skuEditPanel = skuEditOpen ? `
         <div class="admin-edit-panel">
           <h3>Editar detalles del SKU</h3>
           <div class="upload-helper" style="margin-top:0;margin-bottom:12px;">
-            <strong>Prioridad de datos:</strong> lo que escribas aquí tiene prioridad sobre Falabella CL y sobre el Excel. Si dejas un campo vacío, se usará el dato público o base disponible.
+            <strong>Prioridad de datos:</strong> lo que escribas aquí tiene prioridad sobre la info pública y sobre el Excel. Si dejas un campo vacío, se usa el dato público o base disponible.
           </div>
           <div class="manual-grid">
             <div class="field wide">
-              <label>Nombre producto</label>
-              <input id="editNombre" value="${escapeHtml(editValue("nombre"))}" placeholder="Actual: ${escapeHtml(resolvedEditData.nombre || "No indicado")}" />
+              <label>Nombre</label>
+              <input id="editNombre" value="${escapeHtml(editValue("nombre"))}" placeholder="${escapeHtml(placeholderValue("nombre"))}" />
             </div>
             <div class="field">
               <label>Marca</label>
-              <input id="editMarca" value="${escapeHtml(editValue("marca"))}" placeholder="Actual: ${escapeHtml(resolvedEditData.marca || "No indicado")}" />
+              <input id="editMarca" value="${escapeHtml(editValue("marca"))}" placeholder="${escapeHtml(placeholderValue("marca"))}" />
             </div>
             <div class="field">
               <label>Prioridad</label>
               <select id="editPrioridad">${priorityOptionsHtml}</select>
             </div>
             <div class="field">
-              <label>Categoría</label>
-              <input id="editCategoria" value="${escapeHtml(editValue("categoria"))}" placeholder="Actual: ${escapeHtml(resolvedEditData.categoria || "No indicado")}" />
-            </div>
-            <div class="field">
               <label>Material</label>
-              <input id="editMaterial" value="${escapeHtml(editValue("material"))}" placeholder="Actual: ${escapeHtml(resolvedEditData.material || "No indicado")}" />
+              <input id="editMaterial" value="${escapeHtml(editValue("material"))}" placeholder="${escapeHtml(placeholderValue("material"))}" />
             </div>
             <div class="field">
               <label>Color</label>
-              <input id="editColor" value="${escapeHtml(editValue("color"))}" placeholder="Actual: ${escapeHtml(resolvedEditData.color || "No indicado")}" />
+              <input id="editColor" value="${escapeHtml(editValue("color"))}" placeholder="${escapeHtml(placeholderValue("color"))}" />
             </div>
             <div class="field">
               <label>Medidas</label>
-              <input id="editMedidas" value="${escapeHtml(editValue("medidas"))}" placeholder="Actual: ${escapeHtml(resolvedEditData.medidas || "No indicado")}" />
+              <input id="editMedidas" value="${escapeHtml(editValue("medidas"))}" placeholder="${escapeHtml(placeholderValue("medidas"))}" />
             </div>
             <div class="field wide">
-              <label>Descripción / Comentario</label>
-              <textarea id="editComentario" placeholder="Actual: ${escapeHtml(resolvedEditData.comentario || "No indicado")}">${escapeHtml(editValue("comentario"))}</textarea>
+              <label>Descripción</label>
+              <textarea id="editDescripcion" placeholder="${escapeHtml(placeholderValue("descripcion"))}">${escapeHtml(editValue("descripcion"))}</textarea>
+            </div>
+            <div class="field wide">
+              <label>Comentarios</label>
+              <textarea id="editComentario" placeholder="${escapeHtml(placeholderValue("comentario"))}">${escapeHtml(editValue("comentario"))}</textarea>
             </div>
           </div>
           <div class="manual-actions">
@@ -3609,11 +3633,14 @@ Instrucciones:
         </div>
       ` : "";
 
+      const currentPrompt = buildPrompt(record);
+      record.prompt = currentPrompt;
+
       el.innerHTML = `
         <div class="detail-header">
           <div>
             <h2>${escapeHtml(record.sku)}</h2>
-            <small>${escapeHtml(record.marca || "Sin marca")}</small>
+            <small>${escapeHtml(data.marca || "")}</small>
           </div>
           <div>${statusPill(record.estado)}</div>
         </div>
@@ -3622,12 +3649,17 @@ Instrucciones:
           <div class="info-box"><small>Prioridad</small><span>${priorityLabel(record.prioridad)}</span></div>
           <div class="info-box"><small>Veces rechazadas</small><span>${escapeHtml(getRejectionCount(record))}</span></div>
           <div class="info-box"><small>Editor asignado</small><span>${escapeHtml(record.editor || "Sin asignar")}</span></div>
-          <div class="info-box"><small>Medidas</small><span>${escapeHtml(record.medidas || "No indicado")}</span></div>
-          <div class="info-box" style="grid-column:1/-1;"><small>Comentario</small><span>${escapeHtml(record.comentario || "No indicado")}</span></div>
-          ${record.motivoRechazo ? `
+          ${detailInfoBox("Nombre", data.nombre)}
+          ${detailInfoBox("Marca", data.marca)}
+          ${detailInfoBox("Descripción", data.descripcion, true)}
+          ${detailInfoBox("Material", data.material)}
+          ${detailInfoBox("Color", data.color)}
+          ${detailInfoBox("Medidas", data.medidas)}
+          ${detailInfoBox("Comentarios", data.comentario, true)}
+          ${hasUsefulInfo(record.motivoRechazo) ? `
             <div class="info-box" style="grid-column:1/-1;">
               <small>Motivo rechazo</small>
-              <span>${escapeHtml(record.motivoRechazo)}</span>
+              <span>${escapeHtml(cleanInfoValue(record.motivoRechazo))}</span>
             </div>
           ` : ""}
         </div>
@@ -3640,15 +3672,16 @@ Instrucciones:
             <small>Previsualización POS1</small>
             <strong>${escapeHtml(record.sku)}_1</strong>
             <span>Referencia actual del producto para trabajar la ambientación.</span>
+            <div class="panel-title-actions" style="margin-top:10px;justify-content:flex-start;">
+              ${publicLookupLabel(record)}
+              <button class="btn btn-soft btn-small" onclick="fetchPublicProductInfo('${record.id}', true)">Actualizar info pública</button>
+            </div>
           </div>
         </div>
 
-        ${renderProductDataPanel(record)}
-
         ${skuEditPanel}
 
-        <div class="prompt-source-note">Prompt generado con prioridad: edición manual &gt; información pública Falabella CL &gt; carga inicial Excel/manual.</div>
-        <div class="prompt-box">${escapeHtml(buildPrompt(record))}</div>
+        <div class="prompt-box">${escapeHtml(currentPrompt)}</div>
 
         <div class="actions">
           ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
@@ -3683,14 +3716,19 @@ Instrucciones:
         ...record.manualOverrides,
         nombre: document.getElementById("editNombre")?.value.trim() || "",
         marca: document.getElementById("editMarca")?.value.trim() || "",
-        categoria: document.getElementById("editCategoria")?.value.trim() || "",
+        descripcion: document.getElementById("editDescripcion")?.value.trim() || "",
         material: document.getElementById("editMaterial")?.value.trim() || "",
         color: document.getElementById("editColor")?.value.trim() || "",
         medidas: document.getElementById("editMedidas")?.value.trim() || "",
         comentario: document.getElementById("editComentario")?.value.trim() || ""
       };
+      PRODUCT_FIELDS.forEach(field => {
+        record.manualOverrides[field] = cleanInfoValue(record.manualOverrides[field]);
+      });
+
       record.prioridad = priorityNumber(document.getElementById("editPrioridad")?.value || record.prioridad);
       syncLegacyProductFields(record);
+      record.prompt = buildPrompt(record);
       record.updatedAt = new Date().toISOString();
 
       await saveRecord(record);
@@ -3705,16 +3743,17 @@ Instrucciones:
       const record = getRecord(id);
       if (!record) return;
 
-      const confirmed = confirm("Se limpiará la edición manual y el prompt volverá a usar Falabella CL o los datos base disponibles. ¿Continuar?");
+      const confirmed = confirm("Se limpiarán solo los detalles agregados manualmente. Se volverá a usar la info pública o la información del Excel si existe. ¿Continuar?");
       if (!confirmed) return;
 
       record.manualOverrides = emptyProductData();
       syncLegacyProductFields(record);
+      record.prompt = buildPrompt(record);
       record.updatedAt = new Date().toISOString();
 
       await saveRecord(record);
       await refresh();
-      toast(`Edición manual limpiada para ${record.sku}.`);
+      toast(`Detalles manuales limpiados para ${record.sku}.`);
     }
 
     function canAdminRemoveFromWork(record) {
@@ -3772,11 +3811,12 @@ Instrucciones:
       if (!isAdmin() || !record.editor) record.editor = currentUser();
       record.takenAt = record.takenAt || new Date().toISOString();
       record.updatedAt = new Date().toISOString();
-
       syncLegacyProductFields(record);
+      record.prompt = buildPrompt(record);
+
       await saveRecord(record);
-      selectedUploadId = record.id;
       selectedWorkId = record.id;
+      selectedUploadId = record.id;
       await refresh();
       toast(`SKU asignado a ${record.editor}.`);
 
@@ -4517,6 +4557,7 @@ Instrucciones:
       }
 
       const rows = sortByPriority(records).map(record => {
+        const data = getResolvedProductData(record);
         const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
         const imageNames = activeImageNames || record.lastImageNames || "-";
         const adminAssignment = isAdmin() ? `
@@ -4547,8 +4588,11 @@ Instrucciones:
             </td>
             <td><strong>${escapeHtml(getRejectionCount(record))}</strong></td>
             <td>
-              <div>${escapeHtml(record.medidas || "-")}</div>
-              ${record.comentario ? `<div class="master-muted">${escapeHtml(record.comentario)}</div>` : ""}
+              <div>${escapeHtml(data.nombre || "-")}</div>
+              ${data.material ? `<div class="master-muted">Material: ${escapeHtml(data.material)}</div>` : ""}
+              ${data.color ? `<div class="master-muted">Color: ${escapeHtml(data.color)}</div>` : ""}
+              ${data.medidas ? `<div class="master-muted">Medidas: ${escapeHtml(data.medidas)}</div>` : ""}
+              ${data.comentario ? `<div class="master-muted">${escapeHtml(data.comentario)}</div>` : ""}
             </td>
             <td>${escapeHtml(imageNames)}</td>
             <td>${escapeHtml(record.motivoRechazo || "-")}</td>
@@ -5878,8 +5922,6 @@ Instrucciones:
           adminPin: iaPin,
           sku: record.sku,
           prompt: buildPrompt(record),
-          productData: getResolvedProductData(record),
-          publicData: record.publicData || {},
           pos1Url,
           optionNumber
         })
@@ -5917,6 +5959,7 @@ Instrucciones:
       }
 
       syncLegacyProductFields(record);
+      record.prompt = buildPrompt(record);
 
       if (IA_BACKEND_URL.includes("TU-PROYECTO")) {
         alert("Falta configurar IA_BACKEND_URL con la URL real de Vercel.");
@@ -6034,6 +6077,8 @@ Instrucciones:
       toggleAdminSkuEdit,
       cancelAdminSkuEdit,
       saveAdminSkuDetails,
+      clearManualOverrides,
+      fetchPublicProductInfo,
       toggleMetricsPanel,
       setMetricsPeriod,
       downloadMetricsExcel,
@@ -6043,8 +6088,6 @@ Instrucciones:
       toggleNotificationSound,
       markNotificationsRead,
       adminRemoveSkuFromWork,
-      fetchPublicProductInfo,
-      clearManualOverrides,
       openImageModal,
       closeImageModal,
       generateAiOptions
