@@ -1613,7 +1613,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.4</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.5</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1888,7 +1888,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.4";
+    const APP_VERSION = "V1.1.5";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -4388,7 +4388,7 @@ Instrucciones:
                 >
                 <span>
                   <strong>${escapeHtml(image.name || `Imagen ${index + 1}`)}</strong>
-                  <small>Si queda marcada, se aprobará y al descargar quedará como ${escapeHtml(record.sku)}_${String(index + 5).padStart(3, "0")}.jpg</small>
+                  <small>Si queda marcada, se aprobará y al descargar quedará desde ${escapeHtml(record.sku)}_005.jpg. Las no marcadas se descartarán.</small>
                 </span>
               </label>
             `).join("")}
@@ -4420,7 +4420,7 @@ Instrucciones:
 
               <div class="reject-box">
                 <label>Motivo de rechazo</label>
-                <textarea id="rejectReason_${escapeHtml(record.id)}" placeholder="Obligatorio si dejas alguna vista sin aprobar o si rechazas todo el SKU."></textarea>
+                <textarea id="rejectReason_${escapeHtml(record.id)}" placeholder="Obligatorio solo si rechazas todo el SKU."></textarea>
               </div>
 
               <div class="actions">
@@ -5287,7 +5287,7 @@ Instrucciones:
         .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.2" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.5" },
         { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
@@ -5478,15 +5478,6 @@ Instrucciones:
         return;
       }
 
-      const missingReason = approvalPlans
-        .filter(plan => plan.rejected.length && !getReviewReason(plan.record.id))
-        .map(plan => plan.record.sku);
-
-      if (missingReason.length) {
-        alert(`Hay fotos sin aprobar en ${missingReason.join(", ")}. Escribe un motivo de rechazo para que vuelvan a trabajo.`);
-        return;
-      }
-
       reviewProcessing = true;
 
       try {
@@ -5514,7 +5505,7 @@ Instrucciones:
         }
 
         if (!totalFiles) {
-          alert("No se pudo descargar ninguna imagen.");
+          alert("No se pudo descargar ninguna imagen aprobada. Revisa que las fotos sigan existiendo en Storage.");
           return;
         }
 
@@ -5524,58 +5515,43 @@ Instrucciones:
         for (const plan of approvalPlans) {
           const record = plan.record;
           const approvedNames = plan.approved.map(img => img.name).join(", ");
-          const rejectedNames = plan.rejected.map(img => img.name).join(", ");
-          const reason = getReviewReason(record.id);
+          const discardedNames = plan.rejected.map(img => img.name).join(", ");
+          const allReviewedImages = [...plan.approved, ...plan.rejected];
 
           createReviewEvents(record, "approved", plan.approved);
-          if (plan.rejected.length) createReviewEvents(record, "rejected", plan.rejected);
 
-          for (const image of plan.approved) {
+          // Al aprobar una o más alternativas, las demás no vuelven a trabajo: se descartan y se eliminan de Storage.
+          for (const image of allReviewedImages) {
             if (!image.path) continue;
             try {
               await deleteObject(storageRef(storage, image.path));
             } catch (error) {
-              console.warn("No se pudo borrar imagen aprobada:", image.path, error);
+              console.warn("No se pudo borrar imagen revisada:", image.path, error);
             }
           }
 
-          const rejectedImages = plan.rejected.map(image => ({
-            ...image,
-            reviewStatus: "rejected",
-            rejectionReason: reason,
-            rejectedAt: now,
-            rejectedBy: currentUser()
-          }));
-
+          record.estado = STATUS.DESCARGADO;
           record.revisor = currentUser();
+          record.motivoRechazo = "";
           record.reviewedAt = now;
           record.updatedAt = now;
-          record.lastImageNames = [approvedNames, rejectedNames].filter(Boolean).join(" | Rechazadas: ");
+          record.downloadedAt = now;
+          record.lastImageNames = [
+            approvedNames ? `Aprobadas: ${approvedNames}` : "",
+            discardedNames ? `Descartadas: ${discardedNames}` : ""
+          ].filter(Boolean).join(" | ");
           record.generatedImageId = "";
-          record.generatedImageName = rejectedImages.map(img => img.name).join(", ");
-
-          if (rejectedImages.length) {
-            record.estado = STATUS.RECHAZADO;
-            record.motivoRechazo = reason;
-            record.version = Number(record.version || 1) + 1;
-            record.rejectionCount = getRejectionCount(record) + 1;
-            record.generatedImages = rejectedImages;
-          } else {
-            record.estado = STATUS.DESCARGADO;
-            record.motivoRechazo = "";
-            record.generatedImages = [];
-            record.generatedImageName = "";
-            record.downloadedAt = now;
-          }
+          record.generatedImageName = "";
+          record.generatedImages = [];
 
           await saveRecord(record);
         }
 
         await refresh();
-        toast(`${totalFiles} imagen(es) aprobada(s) descargadas en 1500x1500 desde vista 005.`);
+        toast(`${totalFiles} imagen(es) aprobada(s) descargadas. Las alternativas no marcadas fueron descartadas.`);
       } catch (error) {
         console.error(error);
-        alert("No se pudo aprobar/descargar. Revisa permisos de Storage o conexión.");
+        alert(error.message || "No se pudo aprobar/descargar. Revisa permisos de Storage o conexión.");
       } finally {
         reviewProcessing = false;
       }
@@ -5763,19 +5739,30 @@ Instrucciones:
 
     async function downloadStorageBlob(path) {
       const ref = storageRef(storage, path);
+      const errors = [];
+
+      // Primero intentamos con URL firmada, que es el mismo camino que usa la previsualización.
+      // Esto evita algunos 400 de getBlob en ciertos navegadores/configuraciones de Storage.
+      try {
+        const url = await getDownloadURL(ref);
+        const response = await fetch(url, { cache: "no-store" });
+
+        if (response.ok) {
+          return await response.blob();
+        }
+
+        errors.push(`fetch ${response.status}`);
+      } catch (error) {
+        errors.push(error?.message || "fetch/getDownloadURL falló");
+        console.warn("getDownloadURL/fetch falló, se intentará con getBlob:", path, error);
+      }
 
       try {
         return await getBlob(ref);
       } catch (error) {
-        console.warn("getBlob falló, se intentará con getDownloadURL:", path, error);
-        const url = await getDownloadURL(ref);
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(`No se pudo descargar archivo de Storage: ${response.status}`);
-        }
-
-        return await response.blob();
+        errors.push(error?.message || "getBlob falló");
+        console.warn("getBlob también falló:", path, error);
+        throw new Error(`No se pudo descargar la imagen desde Storage (${errors.join(" | ")}).`);
       }
     }
 
