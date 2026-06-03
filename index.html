@@ -1613,7 +1613,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.1</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.2</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1833,7 +1833,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.1";
+    const APP_VERSION = "V1.1.2";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1988,7 +1988,7 @@ const firebaseConfig = {
       if (record.rejectionCount === undefined || record.rejectionCount === null) {
         record.rejectionCount = Math.max(Number(record.version || 1) - 1, 0);
       }
-      if (!record.prompt) record.prompt = buildPrompt(record);
+      record.prompt = buildPrompt(record);
       if (!record.estado) record.estado = STATUS.PENDIENTE;
       if (!record.lastImageNames) record.lastImageNames = "";
 
@@ -2337,22 +2337,138 @@ const firebaseConfig = {
       });
     }
 
+    const BRAND_AESTHETICS = {
+      basement: {
+        nombre: "Basement",
+        estetica: "casual, urbana, moderna, cercana y funcional",
+        ambientacion: "departamento contemporáneo, dormitorio, living o terraza moderna según el tipo de producto; look limpio de retail, con luz natural suave y composición simple",
+        materiales: "maderas claras, textiles neutros, cemento pulido, muros blancos o tonos cálidos suaves",
+        evitar: "ambientaciones demasiado lujosas, sobrecargadas, oscuras o con elementos que le quiten protagonismo al producto",
+        aliases: ["basement"]
+      },
+      sybilla: {
+        nombre: "Sybilla",
+        estetica: "juvenil, femenina, fresca, colorida y trendy",
+        ambientacion: "escenas luminosas, modernas y lifestyle, con detalles decorativos delicados y composición limpia",
+        materiales: "fondos claros, tonos pastel, textiles suaves, flores o accesorios sutiles cuando aporte al producto",
+        evitar: "escenas rígidas, frías, corporativas o demasiado formales",
+        aliases: ["sybilla"]
+      },
+      americanino: {
+        nombre: "Americanino",
+        estetica: "casual denim, urbana, relajada y juvenil",
+        ambientacion: "espacios lifestyle con estética de ciudad, dormitorio moderno, muro texturizado o ambiente casual de fin de semana",
+        materiales: "denim, madera, cuero, metal negro, cemento, tonos azules, grises y neutros",
+        evitar: "lujo excesivo, fondos elegantes de alta moda o escenas infantiles",
+        aliases: ["americanino"]
+      },
+      robertaallen: {
+        nombre: "Roberta Allen",
+        estetica: "decorativa, cálida, natural, elegante y hogareña",
+        ambientacion: "living, comedor, recibidor o espacio de decoración interior con estilo moderno cálido; escena realista y ordenada",
+        materiales: "madera, fibras naturales, cerámica, lino, tonos tierra, beige, crema, verde oliva o acentos naturales",
+        evitar: "fondos fríos, saturados, plásticos, futuristas o con exceso de objetos decorativos",
+        aliases: ["roberta allen", "robertaallen"]
+      },
+      lamartina: {
+        nombre: "La Martina",
+        estetica: "premium, clásica, elegante, ecuestre y sobria",
+        ambientacion: "ambiente refinado, cálido y aspiracional; composición limpia con sensación de marca premium",
+        materiales: "cuero, madera oscura, lino, metal envejecido, tonos navy, café, crema y verde profundo",
+        evitar: "escenas demasiado juveniles, coloridas, urbanas o informales",
+        aliases: ["la martina", "lamartina"]
+      },
+      mango: {
+        nombre: "Mango",
+        estetica: "moderna, mediterránea, minimalista, sofisticada y natural",
+        ambientacion: "espacio luminoso con arquitectura simple, tonos neutros y composición editorial limpia",
+        materiales: "piedra clara, madera, lino, cerámica, muros blancos, beige, arena y luz natural",
+        evitar: "fondos recargados, colores neón, elementos rústicos excesivos o estética de catálogo barato",
+        aliases: ["mango"]
+      },
+      casajoven: {
+        nombre: "Casa Joven",
+        estetica: "joven, práctica, moderna, accesible y funcional",
+        ambientacion: "departamento pequeño, dormitorio, home office o living moderno; escena simple que muestre uso real",
+        materiales: "maderas claras, blanco, gris, fibras simples, detalles verdes y tonos neutros",
+        evitar: "lujo excesivo, espacios demasiado grandes o ambientaciones poco realistas",
+        aliases: ["casa joven", "casajoven"]
+      },
+      default: {
+        nombre: "Estética general retail",
+        estetica: "realista, comercial, moderna, limpia y atractiva",
+        ambientacion: "escena coherente con el uso del producto, con fondo ordenado y composición de ecommerce",
+        materiales: "tonos neutros, luz suave, superficies limpias y elementos secundarios discretos",
+        evitar: "fondos saturados, elementos distractores, composición poco realista o cambios en el producto",
+        aliases: []
+      }
+    };
+
+    function normalizeBrandKey(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+    }
+
+    function getBrandAesthetic(brandName) {
+      const key = normalizeBrandKey(brandName);
+      if (!key) return BRAND_AESTHETICS.default;
+      if (BRAND_AESTHETICS[key]) return BRAND_AESTHETICS[key];
+
+      const match = Object.values(BRAND_AESTHETICS).find(item => {
+        const aliases = item.aliases || [];
+        return aliases.some(alias => {
+          const aliasKey = normalizeBrandKey(alias);
+          return aliasKey && (aliasKey === key || key.includes(aliasKey) || aliasKey.includes(key));
+        });
+      });
+
+      return match || BRAND_AESTHETICS.default;
+    }
+
+    function hasPromptValue(value) {
+      const clean = String(value || "").trim();
+      if (!clean) return false;
+      const normalized = normalizeBrandKey(clean);
+      if (!normalized) return false;
+      if (normalized.startsWith("sin")) return false;
+      if (["na", "n/a", "noaplica", "noindica", "noindicado", "noindicada", "sininformacion"].includes(normalized)) return false;
+      return true;
+    }
+
+    function promptLine(label, value) {
+      return hasPromptValue(value) ? `${label}: ${String(value).trim()}` : "";
+    }
+
     function buildPrompt(record) {
-      const marca = record.marca || "sin marca indicada";
-      const medidas = record.medidas || "sin medidas indicadas";
-      const comentario = record.comentario || "sin comentario adicional";
+      const brandAesthetic = getBrandAesthetic(record.marca);
+
+      const productLines = [
+        promptLine("SKU", record.sku),
+        promptLine("Marca", record.marca),
+        promptLine("Medidas", record.medidas),
+        promptLine("Comentario adicional / ajuste manual", record.comentario)
+      ].filter(Boolean).join("\n");
 
       return `Ambientar este producto de forma realista, comercial y atractiva para ecommerce, manteniendo el producto como protagonista principal.
 
-SKU: ${record.sku}
-Marca: ${marca}
-Medidas: ${medidas}
-Comentario adicional: ${comentario}
+Datos del producto:
+${productLines || "Producto sin datos adicionales."}
+
+Estética sugerida por marca:
+Marca base detectada: ${brandAesthetic.nombre}
+- Estilo general: ${brandAesthetic.estetica}.
+- Ambientación recomendada: ${brandAesthetic.ambientacion}.
+- Materiales / colores sugeridos: ${brandAesthetic.materiales}.
+- Evitar: ${brandAesthetic.evitar}.
 
 Instrucciones:
 - Mantener forma, color, proporciones, materialidad y detalles reales del producto.
 - No cambiar logos, textos, estampados, diseño, textura ni colores principales.
-- Crear una escena limpia, moderna y coherente con una imagen comercial de retail.
+- Crear una escena limpia, moderna y coherente con la estética de la marca detectada.
 - Usar iluminación natural o de estudio suave.
 - Evitar fondos saturados, elementos distractores o composición poco realista.
 - La ambientación debe ayudar a entender el uso del producto y mejorar su atractivo visual.
@@ -4830,7 +4946,7 @@ Instrucciones:
         .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.1" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.2" },
         { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
