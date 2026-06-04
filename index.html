@@ -847,6 +847,69 @@
       outline: none;
     }
 
+
+    .work-bulk-bar {
+      grid-template-columns: 1fr auto auto auto;
+    }
+
+    .work-bulk-edit-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .work-bulk-edit-panel small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .sku-item-select {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    .sku-item-select:hover,
+    .sku-item-select.active {
+      background: rgba(143, 202, 0, .08);
+    }
+
+    .sku-item-checkbox {
+      width: 17px;
+      height: 17px;
+      margin-top: 2px;
+      accent-color: var(--greenFalabella);
+      cursor: pointer;
+    }
+
+    .th-sort {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      font: inherit;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .th-sort:hover {
+      color: var(--greenDark);
+    }
+
     .input-file {
       display: none;
     }
@@ -1613,7 +1676,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.5</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.7</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1723,6 +1786,9 @@
           <button class="btn btn-primary" onclick="addManualSku()">Agregar SKU</button>
         </div>
       </section>
+
+      <div id="workBulkBar" class="bulk-bar work-bulk-bar hidden"></div>
+      <div id="workBulkEditPanel" class="work-bulk-edit-panel hidden"></div>
 
       <div class="layout">
         <div class="list-panel">
@@ -1888,7 +1954,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.5";
+    const APP_VERSION = "V1.1.7";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -1982,13 +2048,15 @@ const firebaseConfig = {
     let reviewProcessing = false;
     let aiGenerating = false;
     let metricsPeriod = "week";
+    let masterSort = { field: "prioridad", direction: "asc" };
+    const selectedWorkBulkIds = new Set();
     const pos1Cache = {};
 
     document.addEventListener("DOMContentLoaded", async () => {
       loadTheme();
       restoreSavedUser();
       initFirebase();
-      renderEmptyBase();
+      await renderEmptyBase();
       lockByUser();
       requestUserSelectionAttention();
     });
@@ -3495,7 +3563,7 @@ Instrucciones:
       renderStats();
       renderNotifications();
       renderWorkList();
-      renderWorkDetail();
+      await renderWorkDetail();
       renderUploadList();
       await renderUploadDetail();
       await renderReviewList();
@@ -3503,11 +3571,11 @@ Instrucciones:
       renderBrandStylesView();
     }
 
-    function renderEmptyBase() {
+    async function renderEmptyBase() {
       renderStats();
       renderNotifications();
       renderWorkList();
-      renderWorkDetail();
+      await renderWorkDetail();
       renderUploadList();
       renderMasterTable();
       renderBrandStylesView();
@@ -3567,11 +3635,11 @@ Instrucciones:
       renderUploadDetail();
     }
 
-    function renderWorkList() {
+    function getVisibleWorkRecords() {
       const user = currentUser();
       const role = getUserRole();
 
-      const list = sortByPriority(records).filter(record => {
+      return sortByPriority(records).filter(record => {
         if (role === ROLES.ADMIN) {
           return record.estado === STATUS.PENDIENTE ||
             record.estado === STATUS.RECHAZADO ||
@@ -3585,9 +3653,19 @@ Instrucciones:
 
         return false;
       });
+    }
+
+    function renderWorkList() {
+      const list = getVisibleWorkRecords();
+      const visibleIds = new Set(list.map(record => record.id));
+      [...selectedWorkBulkIds].forEach(id => {
+        if (!visibleIds.has(id)) selectedWorkBulkIds.delete(id);
+      });
 
       const countEl = document.getElementById("workCount");
       if (countEl) countEl.textContent = list.length;
+
+      renderWorkBulkBar(list);
 
       const el = document.getElementById("workList");
       if (!el) return;
@@ -3597,10 +3675,238 @@ Instrucciones:
         return;
       }
 
-      el.innerHTML = list.map(record => renderSkuItem(record, selectedWorkId, "selectWork")).join("");
+      el.innerHTML = list.map(record => renderWorkSkuItem(record)).join("");
     }
 
-    function renderWorkDetail() {
+    function renderWorkSkuItem(record) {
+      const editorText = record.editor ? ` · Editor: ${record.editor}` : "";
+      const checked = selectedWorkBulkIds.has(record.id) ? "checked" : "";
+      const checkboxHtml = isAdmin() ? `
+        <input
+          type="checkbox"
+          class="sku-item-checkbox"
+          ${checked}
+          onclick="event.stopPropagation(); toggleWorkBulkSelection('${record.id}', this.checked);"
+          title="Seleccionar SKU"
+        >
+      ` : "";
+
+      const inner = `
+        <div>
+          <div class="sku-item-top">
+            <div class="sku-code">${escapeHtml(record.sku)}</div>
+            ${priorityPill(record.prioridad)}
+          </div>
+          <div class="sku-brand">${escapeHtml(record.marca || "Sin marca")}${escapeHtml(editorText)}</div>
+          <div>${statusPill(record.estado)}</div>
+        </div>
+      `;
+
+      if (!isAdmin()) {
+        return `
+          <div class="sku-item ${selectedWorkId === record.id ? "active" : ""}" onclick="selectWork('${record.id}')">
+            ${inner}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="sku-item-select ${selectedWorkId === record.id ? "active" : ""}" onclick="selectWork('${record.id}')">
+          ${checkboxHtml}
+          ${inner}
+        </div>
+      `;
+    }
+
+    function renderWorkBulkBar(list = getVisibleWorkRecords()) {
+      const bar = document.getElementById("workBulkBar");
+      const panel = document.getElementById("workBulkEditPanel");
+      if (!bar) return;
+
+      if (!isAdmin() || !list.length) {
+        bar.classList.add("hidden");
+        if (panel) panel.classList.add("hidden");
+        selectedWorkBulkIds.clear();
+        return;
+      }
+
+      const count = selectedWorkBulkIds.size;
+      bar.classList.remove("hidden");
+      bar.innerHTML = `
+        <strong>${count ? `${count} SKU(s) seleccionados` : "Selección múltiple de SKU"}</strong>
+        <button class="btn btn-soft btn-small" onclick="toggleSelectAllWorkVisible()">Seleccionar / limpiar visibles</button>
+        <button class="btn btn-primary btn-small" onclick="openBulkWorkEdit()" ${count ? "" : "disabled"}>Editar seleccionados</button>
+        <button class="btn btn-red btn-small" onclick="adminRemoveSelectedSkusFromWork()" ${count ? "" : "disabled"}>Quitar seleccionados</button>
+      `;
+    }
+
+    function toggleWorkBulkSelection(id, checked) {
+      if (!isAdmin()) return;
+      if (checked) selectedWorkBulkIds.add(id);
+      else selectedWorkBulkIds.delete(id);
+      renderWorkBulkBar();
+    }
+
+    function toggleSelectAllWorkVisible() {
+      if (!requireAdmin()) return;
+      const list = getVisibleWorkRecords();
+      const allSelected = list.length && list.every(record => selectedWorkBulkIds.has(record.id));
+
+      if (allSelected) {
+        list.forEach(record => selectedWorkBulkIds.delete(record.id));
+      } else {
+        list.forEach(record => selectedWorkBulkIds.add(record.id));
+      }
+
+      renderWorkList();
+    }
+
+    function openBulkWorkEdit() {
+      if (!requireAdmin()) return;
+      const ids = [...selectedWorkBulkIds];
+
+      if (!ids.length) {
+        alert("Selecciona al menos un SKU para editar.");
+        return;
+      }
+
+      const panel = document.getElementById("workBulkEditPanel");
+      if (!panel) return;
+
+      panel.classList.remove("hidden");
+      panel.innerHTML = `
+        <div class="manual-title">
+          <div>
+            <h2>Editar ${ids.length} SKU(s) seleccionados</h2>
+            <small>Solo se actualizarán los campos que rellenes. Los campos vacíos no cambiarán la información actual.</small>
+          </div>
+          <button class="btn btn-soft btn-small" onclick="closeBulkWorkEdit()">Cerrar</button>
+        </div>
+        <div class="manual-grid">
+          <div class="field">
+            <label>Marca</label>
+            <input id="bulkEditMarca" placeholder="Dejar vacío para no cambiar" />
+          </div>
+          <div class="field">
+            <label>Prioridad</label>
+            <select id="bulkEditPrioridad">
+              <option value="">No cambiar</option>
+              <option value="1">1 · Urgente</option>
+              <option value="2">2 · Alta</option>
+              <option value="3">3 · Media</option>
+              <option value="4">4 · Baja</option>
+              <option value="5">5 · Normal</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Medidas</label>
+            <input id="bulkEditMedidas" placeholder="Dejar vacío para no cambiar" />
+          </div>
+          <div class="field wide">
+            <label>Descripción / Comentario</label>
+            <textarea id="bulkEditComentario" placeholder="Dejar vacío para no cambiar"></textarea>
+          </div>
+        </div>
+        <div class="manual-actions">
+          <button class="btn btn-soft" onclick="closeBulkWorkEdit()">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveBulkWorkEdit()">Guardar cambios masivos</button>
+        </div>
+      `;
+    }
+
+    function closeBulkWorkEdit() {
+      const panel = document.getElementById("workBulkEditPanel");
+      if (!panel) return;
+      panel.classList.add("hidden");
+      panel.innerHTML = "";
+    }
+
+    async function saveBulkWorkEdit() {
+      if (!requireAdmin()) return;
+      const ids = [...selectedWorkBulkIds];
+
+      if (!ids.length) {
+        alert("Selecciona al menos un SKU para editar.");
+        return;
+      }
+
+      const marca = document.getElementById("bulkEditMarca")?.value.trim() || "";
+      const prioridad = document.getElementById("bulkEditPrioridad")?.value || "";
+      const medidas = document.getElementById("bulkEditMedidas")?.value.trim() || "";
+      const comentario = document.getElementById("bulkEditComentario")?.value.trim() || "";
+
+      if (!marca && !prioridad && !medidas && !comentario) {
+        alert("Rellena al menos un campo para actualizar.");
+        return;
+      }
+
+      const now = new Date().toISOString();
+      let updated = 0;
+
+      for (const id of ids) {
+        const record = getRecord(id);
+        if (!record || !canAdminRemoveFromWork(record)) continue;
+
+        if (marca) record.marca = marca;
+        if (prioridad) record.prioridad = priorityNumber(prioridad);
+        if (medidas) record.medidas = medidas;
+        if (comentario) record.comentario = comentario;
+
+        record.prompt = buildPrompt(record);
+        record.updatedAt = now;
+        await saveRecord(record);
+        updated++;
+      }
+
+      closeBulkWorkEdit();
+      await refresh();
+      toast(`${updated} SKU(s) actualizados.`);
+    }
+
+    async function adminRemoveSelectedSkusFromWork() {
+      if (!requireAdmin()) return;
+      const ids = [...selectedWorkBulkIds].filter(id => {
+        const record = getRecord(id);
+        return record && canAdminRemoveFromWork(record);
+      });
+
+      if (!ids.length) {
+        alert("Selecciona al menos un SKU para quitar.");
+        return;
+      }
+
+      const confirmed = confirm(`Se quitarán ${ids.length} SKU(s) de SKU a trabajar y quedarán en el Master como Descartado.\n\n¿Continuar?`);
+      if (!confirmed) return;
+
+      const reason = prompt("Motivo opcional para dejar registro:", "") || "";
+      const now = new Date().toISOString();
+      let updated = 0;
+
+      for (const id of ids) {
+        const record = getRecord(id);
+        if (!record || !canAdminRemoveFromWork(record)) continue;
+
+        record.estado = STATUS.DESCARTADO;
+        record.removedFromWork = true;
+        record.removedBy = currentUser();
+        record.removedAt = now;
+        record.removedReason = reason.trim();
+        record.updatedAt = now;
+
+        await saveRecord(record);
+        updated++;
+      }
+
+      ids.forEach(id => selectedWorkBulkIds.delete(id));
+      if (ids.includes(selectedWorkId)) selectedWorkId = "";
+      if (ids.includes(selectedUploadId)) selectedUploadId = "";
+      closeBulkWorkEdit();
+      await refresh();
+      toast(`${updated} SKU(s) quitados de SKU a trabajar.`);
+    }
+
+
+    async function renderWorkDetail() {
       const el = document.getElementById("workDetail");
       if (!el) return;
 
@@ -3616,6 +3922,9 @@ Instrucciones:
         ? "Sin match de marca. Se usa estética general retail."
         : `${brandAesthetic.marca} · ${brandAesthetic.estiloVisual || "Estética registrada"}`;
       const currentPrompt = buildPrompt(record);
+      const rejectedPreviewHtml = record.estado === STATUS.RECHAZADO && getRecordImages(record).length
+        ? await getRejectedImagesWorkPreviewHtml(record)
+        : "";
 
       const skuEditOpen = hasActiveUserAccess() && editingWorkId === record.id;
       const priorityOptionsHtml = [1, 2, 3, 4, 5].map(value => {
@@ -3686,6 +3995,7 @@ Instrucciones:
           </div>
         </div>
 
+        ${rejectedPreviewHtml}
         ${skuEditPanel}
 
         <div class="prompt-box">${escapeHtml(currentPrompt)}</div>
@@ -3729,6 +4039,45 @@ Instrucciones:
       await refresh();
       toast(`SKU ${record.sku} actualizado.`);
     }
+
+    async function getRejectedImagesWorkPreviewHtml(record) {
+      const images = getRecordImages(record);
+      if (!images.length) return "";
+
+      const items = [];
+
+      for (const image of images) {
+        if (!image.path) continue;
+
+        try {
+          const url = await getDownloadURL(storageRef(storage, image.path));
+          const reason = image.rejectionReason || record.motivoRechazo || "Sin motivo registrado";
+
+          items.push(`
+            <div class="preview-item">
+              <img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Imagen rechazada")}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline((image.name || record.sku) + " · Rechazada")}' )">
+              <div class="preview-name">
+                ${escapeHtml(image.name || "Imagen rechazada")}
+                <span class="image-review-state rejected">Rechazada</span>
+                <div class="master-muted">${escapeHtml(reason)}</div>
+              </div>
+            </div>
+          `);
+        } catch (error) {
+          console.warn("No se pudo cargar imagen rechazada:", image.path, error);
+        }
+      }
+
+      if (!items.length) return "";
+
+      return `
+        <div class="preview" style="margin-bottom:14px;">
+          <strong style="display:block; color:var(--text); margin-bottom:10px;">Imágenes rechazadas conservadas</strong>
+          <div class="preview-grid">${items.join("")}</div>
+        </div>
+      `;
+    }
+
 
     function canAdminRemoveFromWork(record) {
       return isAdmin() && record && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO].includes(record.estado);
@@ -4507,6 +4856,74 @@ Instrucciones:
       await refresh();
     }
 
+    function masterSortButton(label, field) {
+      return `<button class="th-sort" onclick="setMasterSort('${field}')">${escapeHtml(label)} ${masterSortIndicator(field)}</button>`;
+    }
+
+    function masterSortIndicator(field) {
+      if (masterSort.field !== field) return "↕";
+      return masterSort.direction === "asc" ? "↑" : "↓";
+    }
+
+    function masterValue(record, field) {
+      const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
+      const imageNames = activeImageNames || record.lastImageNames || "";
+
+      switch (field) {
+        case "sku": return normalizeText(record.sku);
+        case "marca": return normalizeText(record.marca);
+        case "prioridad": return priorityNumber(record.prioridad);
+        case "estado": return normalizeText(record.estado);
+        case "editor": return normalizeText(record.editor);
+        case "revisor": return normalizeText(record.revisor);
+        case "rechazos": return getRejectionCount(record);
+        case "info": return normalizeText(`${record.medidas || ""} ${record.comentario || ""}`);
+        case "imagen": return normalizeText(imageNames);
+        case "motivo": return normalizeText(record.motivoRechazo);
+        case "fechas": return dateSortValue(record.downloadedAt || record.reviewedAt || record.updatedAt || record.createdAt);
+        case "descargado": return dateSortValue(record.downloadedAt);
+        case "actualizado": return dateSortValue(record.updatedAt);
+        default: return normalizeText(record.sku);
+      }
+    }
+
+    function dateSortValue(value) {
+      if (!value) return null;
+      const time = new Date(value).getTime();
+      return Number.isFinite(time) ? time : null;
+    }
+
+    function sortMasterRecords(list) {
+      const field = masterSort.field || "prioridad";
+      const direction = masterSort.direction === "desc" ? -1 : 1;
+
+      return [...list].sort((a, b) => {
+        const av = masterValue(a, field);
+        const bv = masterValue(b, field);
+
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;
+        if (bv === null) return -1;
+
+        if (typeof av === "number" && typeof bv === "number") {
+          return (av - bv) * direction;
+        }
+
+        return String(av).localeCompare(String(bv), "es", { numeric: true }) * direction;
+      });
+    }
+
+    function setMasterSort(field) {
+      if (masterSort.field === field) {
+        masterSort.direction = masterSort.direction === "asc" ? "desc" : "asc";
+      } else {
+        masterSort.field = field;
+        masterSort.direction = "asc";
+      }
+
+      renderMasterTable();
+    }
+
     function renderMasterTable() {
       const el = document.getElementById("masterTable");
       const masterCount = document.getElementById("masterCount");
@@ -4523,7 +4940,7 @@ Instrucciones:
         return;
       }
 
-      const rows = sortByPriority(records).map(record => {
+      const rows = sortMasterRecords(records).map(record => {
         const activeImageNames = getRecordImages(record).map(img => img.name).join(", ");
         const imageNames = activeImageNames || record.lastImageNames || "-";
         const adminAssignment = isAdmin() ? `
@@ -4578,16 +4995,16 @@ Instrucciones:
           <table class="master-table">
             <thead>
               <tr>
-                <th>SKU / Marca</th>
-                <th>Prioridad</th>
-                <th>Estado</th>
-                <th>Editor / Asignación</th>
-                <th>Revisor</th>
-                <th># veces rechazadas</th>
-                <th>Info</th>
-                <th>Imagen</th>
-                <th>Motivo rechazo</th>
-                <th>Fechas</th>
+                <th>${masterSortButton("SKU / Marca", "sku")}</th>
+                <th>${masterSortButton("Prioridad", "prioridad")}</th>
+                <th>${masterSortButton("Estado", "estado")}</th>
+                <th>${masterSortButton("Editor / Asignación", "editor")}</th>
+                <th>${masterSortButton("Revisor", "revisor")}</th>
+                <th>${masterSortButton("# veces rechazadas", "rechazos")}</th>
+                <th>${masterSortButton("Info", "info")}</th>
+                <th>${masterSortButton("Imagen", "imagen")}</th>
+                <th>${masterSortButton("Motivo rechazo", "motivo")}</th>
+                <th>${masterSortButton("Fechas", "fechas")}</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -5287,7 +5704,7 @@ Instrucciones:
         .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.5" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.6" },
         { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
@@ -6036,6 +6453,13 @@ Instrucciones:
       toggleNotificationSound,
       markNotificationsRead,
       adminRemoveSkuFromWork,
+      toggleWorkBulkSelection,
+      toggleSelectAllWorkVisible,
+      openBulkWorkEdit,
+      closeBulkWorkEdit,
+      saveBulkWorkEdit,
+      adminRemoveSelectedSkusFromWork,
+      setMasterSort,
       openImageModal,
       closeImageModal,
       generateAiOptions
