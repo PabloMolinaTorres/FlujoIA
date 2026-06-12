@@ -1715,7 +1715,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.8</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.10</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2001,7 +2001,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.8";
+    const APP_VERSION = "V1.1.10";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -4430,6 +4430,39 @@ Esto permitirá volver a cargarlo más adelante.
       toast(`SKU ${record.sku} eliminado permanentemente.`);
     }
 
+    async function adminDeleteSkuFromMaster(id) {
+      if (!requireAdmin()) return;
+
+      const record = getRecord(id);
+      if (!record) {
+        alert("No se encontró el SKU en el Master.");
+        return;
+      }
+
+      const confirmed = confirm(`Se eliminará permanentemente el SKU ${record.sku} del Master.
+
+También se eliminarán sus imágenes asociadas en Storage.
+
+Después podrás volver a cargar este SKU desde Excel o manual.
+
+¿Continuar?`);
+      if (!confirmed) return;
+
+      try {
+        await permanentlyDeleteRecord(record);
+
+        if (selectedWorkId === id) selectedWorkId = "";
+        if (selectedUploadId === id) selectedUploadId = "";
+        selectedWorkBulkIds.delete(id);
+
+        await refresh();
+        toast(`SKU ${record.sku} eliminado del Master.`);
+      } catch (error) {
+        console.error(error);
+        alert("No se pudo eliminar el SKU del Master. Revisa permisos de Firestore/Storage.");
+      }
+    }
+
     async function takeWork(id) {
       if (!requireTabAccess("work")) return;
 
@@ -5235,7 +5268,7 @@ Esto permitirá volver a cargarlo más adelante.
         case "info": return normalizeText(`${record.medidas || ""} ${record.comentario || ""}`);
         case "imagen": return normalizeText(imageNames);
         case "motivo": return normalizeText(record.motivoRechazo);
-        case "fechas": return dateSortValue(record.downloadedAt || record.reviewedAt || record.updatedAt || record.createdAt);
+        case "fechas": return dateSortValue(getLastMasterActivityDate(record));
         case "descargado": return dateSortValue(record.downloadedAt);
         case "actualizado": return dateSortValue(record.updatedAt);
         default: return normalizeText(record.sku);
@@ -5246,6 +5279,46 @@ Esto permitirá volver a cargarlo más adelante.
       if (!value) return null;
       const time = new Date(value).getTime();
       return Number.isFinite(time) ? time : null;
+    }
+
+    function getLastMasterActivityDate(record = {}) {
+      const dates = [
+        record.createdAt,
+        record.updatedAt,
+        record.takenAt,
+        record.uploadedAt,
+        record.reviewedAt,
+        record.downloadedAt,
+        record.removedAt
+      ];
+
+      if (Array.isArray(record.generatedImages)) {
+        record.generatedImages.forEach(image => {
+          dates.push(image.uploadedAt, image.generatedAt, image.createdAt, image.reviewedAt);
+        });
+      }
+
+      if (Array.isArray(record.uploadEvents)) {
+        record.uploadEvents.forEach(event => {
+          dates.push(event.uploadedAt, event.createdAt, event.fecha);
+        });
+      }
+
+      if (Array.isArray(record.reviewEvents)) {
+        record.reviewEvents.forEach(event => {
+          dates.push(event.reviewedAt, event.createdAt, event.fecha, event.date);
+        });
+      }
+
+      const validDates = dates
+        .map(value => {
+          const time = dateSortValue(value);
+          return time === null ? null : { value, time };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.time - a.time);
+
+      return validDates[0]?.value || "";
     }
 
     function sortMasterRecords(list) {
@@ -5306,6 +5379,11 @@ Esto permitirá volver a cargarlo más adelante.
             <div class="master-muted">Admin: reasignar o quitar</div>
           </div>
         ` : "";
+        const adminActions = isAdmin() ? `
+          <button class="btn btn-red btn-small" type="button" onclick="adminDeleteSkuFromMaster('${record.id}')">
+            Eliminar del Master
+          </button>
+        ` : "-";
 
         return `
           <tr>
@@ -5333,14 +5411,10 @@ Esto permitirá volver a cargarlo más adelante.
             <td>${escapeHtml(record.motivoRechazo || "-")}</td>
             <td>
               <div class="master-muted">
-                Creado: ${formatDate(record.createdAt)}
-                <br>
-                Actualizado: ${formatDate(record.updatedAt)}
-                ${record.downloadedAt ? `<br>Descargado: ${formatDate(record.downloadedAt)}` : ""}
-                ${record.removedAt ? `<br>Descartado: ${formatDate(record.removedAt)} por ${escapeHtml(record.removedBy || "-")}` : ""}
-                ${record.removedReason ? `<br>Motivo descarte: ${escapeHtml(record.removedReason)}` : ""}
+                ${formatDate(getLastMasterActivityDate(record)) || "-"}
               </div>
             </td>
+            <td>${adminActions}</td>
           </tr>
         `;
       }).join("");
@@ -5359,7 +5433,8 @@ Esto permitirá volver a cargarlo más adelante.
                 <th>${masterSortButton("Info", "info")}</th>
                 <th>${masterSortButton("Imagen", "imagen")}</th>
                 <th>${masterSortButton("Motivo rechazo", "motivo")}</th>
-                <th>${masterSortButton("Fechas", "fechas")}</th>
+                <th>${masterSortButton("Última fecha", "fechas")}</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -6059,7 +6134,7 @@ Esto permitirá volver a cargarlo más adelante.
         .map(({ _fechaOrden, ...row }) => row);
 
       const infoRows = [
-        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.6" },
+        { Campo: "Archivo", Valor: "Métricas Flujo IA V1.1.10" },
         { Campo: "Criterio tasa rechazo", Valor: "Fotos rechazadas / fotos revisadas" },
         { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
       ];
@@ -6903,6 +6978,7 @@ ${image.name || "Imagen sin nombre"}`);
       toggleNotificationSound,
       markNotificationsRead,
       adminRemoveSkuFromWork,
+      adminDeleteSkuFromMaster,
       toggleWorkBulkSelection,
       toggleSelectAllWorkVisible,
       openBulkWorkEdit,
