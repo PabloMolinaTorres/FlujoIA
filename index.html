@@ -619,6 +619,45 @@
       line-height: 1.25;
     }
 
+    .preview-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .style-reference-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .style-reference-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .style-reference-item img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      border-radius: 10px;
+      background: var(--card2);
+      cursor: zoom-in;
+    }
+
+    .style-reference-name {
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-word;
+      line-height: 1.25;
+    }
+
     .upload-helper {
       margin-top: 12px;
       background: rgba(59, 130, 246, .08);
@@ -1676,7 +1715,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.7</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.8</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -1870,6 +1909,14 @@
               <label>Evitar *</label>
               <textarea id="styleEvitar" placeholder="Ej: fondos deportivos, escenas futuristas, colores neón o exceso de elementos."></textarea>
             </div>
+            <div class="field wide">
+              <label>Imágenes de referencia</label>
+              <input id="styleReferenceImages" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple />
+              <small style="color:var(--muted); font-weight:700; line-height:1.35; display:block; margin-top:4px;">
+                Opcional. Sirven como referencia visual para dirección de arte y se enviarán al backend IA como URLs cuando esté preparado para usarlas.
+              </small>
+              <div id="styleReferencePreview" class="style-reference-grid"></div>
+            </div>
           </div>
           <div class="manual-actions">
             <button class="btn btn-soft" onclick="clearBrandStyleForm()">Limpiar</button>
@@ -1954,12 +2001,13 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.7";
+    const APP_VERSION = "V1.1.8";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
     const BRAND_STYLES_COLLECTION_NAME = "flujo_ia_esteticas_marca";
     const STORAGE_ROOT = "flujo-ia/imagenes";
+    const STYLE_REFERENCE_STORAGE_ROOT = "flujo-ia/esteticas";
 
     const IA_BACKEND_URL = "https://flujo-ia-backend.vercel.app/api/generate-image";
     const IA_OPTIONS_COUNT = 2;
@@ -1996,6 +2044,8 @@ const firebaseConfig = {
     const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
     const ALLOWED_UPLOAD_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif"];
     const ALLOWED_UPLOAD_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+    const ALLOWED_UPLOAD_VIEWS = ["005", "006", "007"];
+    const MAX_STYLE_REFERENCE_IMAGES = 8;
 
     const ROLES = {
       ADMIN: "admin",
@@ -2510,6 +2560,61 @@ const firebaseConfig = {
         .replace(/[^a-z0-9]/g, "");
     }
 
+    function normalizeStyleReferenceImages(value = []) {
+      if (!value) return [];
+
+      if (typeof value === "string") {
+        return value
+          .split(/[\n,;]+/)
+          .map(item => item.trim())
+          .filter(Boolean)
+          .map((url, index) => ({
+            id: `ref_${index}_${normalizeBrandKey(url).slice(0, 16) || uid()}`,
+            name: url.split("/").filter(Boolean).pop() || `Referencia ${index + 1}`,
+            url,
+            path: "",
+            size: 0,
+            type: "",
+            uploadedAt: "",
+            uploadedBy: ""
+          }));
+      }
+
+      if (!Array.isArray(value)) return [];
+
+      return value
+        .map((item, index) => {
+          if (!item) return null;
+
+          if (typeof item === "string") {
+            const url = item.trim();
+            if (!url) return null;
+            return {
+              id: `ref_${index}_${normalizeBrandKey(url).slice(0, 16) || uid()}`,
+              name: url.split("/").filter(Boolean).pop() || `Referencia ${index + 1}`,
+              url,
+              path: "",
+              size: 0,
+              type: "",
+              uploadedAt: "",
+              uploadedBy: ""
+            };
+          }
+
+          return {
+            id: String(item.id || uid()).trim(),
+            name: String(item.name || item.nombre || `Referencia ${index + 1}`).trim(),
+            path: String(item.path || "").trim(),
+            url: String(item.url || "").trim(),
+            size: Number(item.size || 0),
+            type: String(item.type || "").trim(),
+            uploadedAt: String(item.uploadedAt || "").trim(),
+            uploadedBy: String(item.uploadedBy || "").trim()
+          };
+        })
+        .filter(Boolean);
+    }
+
     function normalizeBrandStyleRecord(record = {}) {
       const marca = String(record.marca || record.Marca || "").trim();
       const id = record.id || normalizeBrandKey(marca) || uid();
@@ -2520,6 +2625,7 @@ const firebaseConfig = {
         estiloVisual: String(record.estiloVisual || record.estilo || record["Estilo visual"] || "").trim(),
         ambientacionSugerida: String(record.ambientacionSugerida || record.ambientacion || record["Ambientación sugerida"] || "").trim(),
         evitar: String(record.evitar || record.Evitar || "").trim(),
+        referenceImages: normalizeStyleReferenceImages(record.referenceImages || record.referencias || record["Referencias visuales"] || record["Referencias"] || []),
         updatedBy: String(record.updatedBy || "").trim(),
         updatedAt: String(record.updatedAt || "").trim(),
         createdAt: String(record.createdAt || "").trim()
@@ -2566,10 +2672,15 @@ const firebaseConfig = {
         promptLine("Comentario adicional / ajuste manual", record.comentario)
       ].filter(Boolean).join("\n");
 
+      const referenceNames = Array.isArray(brandAesthetic.referenceImages)
+        ? brandAesthetic.referenceImages.map(img => img.name).filter(Boolean).join(", ")
+        : "";
+
       const aestheticLines = [
         promptLine("Marca base detectada", brandAesthetic.marca),
         promptLine("Estilo visual", brandAesthetic.estiloVisual),
         promptLine("Ambientación sugerida", brandAesthetic.ambientacionSugerida),
+        promptLine("Referencias visuales", referenceNames),
         promptLine("Evitar", brandAesthetic.evitar)
       ].filter(Boolean).join("\n");
 
@@ -3303,10 +3414,11 @@ Instrucciones:
       editingStyleId = "";
       const title = document.getElementById("brandStyleFormTitle");
       if (title) title.textContent = "Agregar estética de marca";
-      ["styleMarca", "styleEstilo", "styleAmbientacion", "styleEvitar"].forEach(id => {
+      ["styleMarca", "styleEstilo", "styleAmbientacion", "styleEvitar", "styleReferenceImages"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
       });
+      renderStyleReferencePreview(null);
     }
 
     function editBrandStyle(id) {
@@ -3323,6 +3435,148 @@ Instrucciones:
       document.getElementById("styleEstilo").value = style.estiloVisual || "";
       document.getElementById("styleAmbientacion").value = style.ambientacionSugerida || "";
       document.getElementById("styleEvitar").value = style.evitar || "";
+      renderStyleReferencePreview(style);
+    }
+
+    async function getStyleReferenceImageUrl(image) {
+      if (!image) return "";
+      if (image.url) return image.url;
+      if (!image.path) return "";
+      try {
+        return await getDownloadURL(storageRef(storage, image.path));
+      } catch (error) {
+        console.warn("No se pudo cargar referencia de estética:", image.path, error);
+        return "";
+      }
+    }
+
+    async function renderStyleReferencePreview(style) {
+      const el = document.getElementById("styleReferencePreview");
+      if (!el) return;
+
+      const images = normalizeStyleReferenceImages(style?.referenceImages || []);
+      if (!images.length) {
+        el.innerHTML = `<div class="master-muted">Sin imágenes de referencia guardadas.</div>`;
+        return;
+      }
+
+      const items = [];
+
+      for (const image of images) {
+        const url = await getStyleReferenceImageUrl(image);
+        const deleteButton = style?.id && image.id ? `
+          <button class="btn btn-red btn-small" type="button" onclick="deleteBrandStyleReferenceImage('${encodeForInline(style.id)}', '${encodeForInline(image.id)}')">Quitar</button>
+        ` : "";
+
+        items.push(`
+          <div class="style-reference-item">
+            ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Referencia")}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline(image.name || "Referencia estética")}')">` : `<div class="empty" style="padding:18px;">No disponible</div>`}
+            <div class="style-reference-name">${escapeHtml(image.name || "Referencia")}</div>
+            ${deleteButton ? `<div class="preview-actions">${deleteButton}</div>` : ""}
+          </div>
+        `);
+      }
+
+      el.innerHTML = items.join("");
+    }
+
+    async function uploadBrandStyleReferenceImages(marca, files, existingImages = []) {
+      const incoming = [...(files || [])];
+      const current = normalizeStyleReferenceImages(existingImages);
+      if (!incoming.length) return current;
+
+      if (!firebaseReady || !storage) {
+        alert("Firebase Storage no está disponible para subir referencias.");
+        return current;
+      }
+
+      const availableSlots = Math.max(MAX_STYLE_REFERENCE_IMAGES - current.length, 0);
+      if (availableSlots <= 0) {
+        alert(`Esta marca ya tiene el máximo de ${MAX_STYLE_REFERENCE_IMAGES} referencias.`);
+        return current;
+      }
+
+      const filesToUpload = incoming.slice(0, availableSlots);
+      const omitted = incoming.length - filesToUpload.length;
+      const uploaded = [];
+      const errors = [];
+      const styleId = brandStyleDocumentId(marca);
+
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const file = filesToUpload[i];
+
+        if (!isAllowedUploadFile(file)) {
+          errors.push(`${file.name} · formato no permitido`);
+          continue;
+        }
+
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+          errors.push(`${file.name} · supera 10 MB`);
+          continue;
+        }
+
+        const imageId = `style_${Date.now()}_${i}_${Math.random().toString(16).slice(2)}`;
+        const cleanName = safeFileName(file.name);
+        const path = `${STYLE_REFERENCE_STORAGE_ROOT}/${styleId}/${imageId}_${cleanName}`;
+        const contentType = uploadContentType(file);
+
+        await uploadBytes(storageRef(storage, path), file, { contentType });
+
+        uploaded.push({
+          id: imageId,
+          name: file.name,
+          path,
+          url: "",
+          size: file.size,
+          type: contentType,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: currentUser()
+        });
+      }
+
+      if (omitted > 0) errors.push(`${omitted} imagen(es) omitidas por límite máximo de ${MAX_STYLE_REFERENCE_IMAGES}.`);
+      if (errors.length) alert("Algunas referencias no se subieron:\n\n" + errors.join("\n"));
+
+      return [...current, ...uploaded];
+    }
+
+    async function deleteBrandStyleReferenceImage(styleIdRaw, imageIdRaw) {
+      if (!canManageBrandStyles()) return;
+
+      const styleId = decodeURIComponent(String(styleIdRaw || ""));
+      const imageId = decodeURIComponent(String(imageIdRaw || ""));
+      const style = getBrandStyle(styleId);
+      if (!style) return;
+
+      const images = normalizeStyleReferenceImages(style.referenceImages || []);
+      const image = images.find(item => item.id === imageId);
+      if (!image) return;
+
+      const ok = confirm(`¿Quitar esta referencia de ${style.marca}?
+
+${image.name || "Imagen sin nombre"}`);
+      if (!ok) return;
+
+      if (image.path) {
+        try {
+          await deleteObject(storageRef(storage, image.path));
+        } catch (error) {
+          console.warn("No se pudo borrar referencia de Storage:", image.path, error);
+        }
+      }
+
+      const clean = normalizeBrandStyleRecord({
+        ...style,
+        referenceImages: images.filter(item => item.id !== imageId),
+        updatedBy: currentUser(),
+        updatedAt: new Date().toISOString()
+      });
+
+      await setDoc(doc(db, BRAND_STYLES_COLLECTION_NAME, clean.id), clean, { merge: true });
+      await refresh();
+
+      if (editingStyleId === clean.id) renderStyleReferencePreview(clean);
+      toast("Referencia eliminada.");
     }
 
     async function saveBrandStyle(styleInput) {
@@ -3331,12 +3585,19 @@ Instrucciones:
         return;
       }
 
+      const targetId = brandStyleDocumentId(styleInput.marca);
+      const existingStyle = getBrandStyle(editingStyleId) || getBrandStyle(targetId);
+      const referenceImages = styleInput.referenceImages !== undefined
+        ? styleInput.referenceImages
+        : normalizeStyleReferenceImages(existingStyle?.referenceImages || []);
+
       const clean = normalizeBrandStyleRecord({
         ...styleInput,
-        id: brandStyleDocumentId(styleInput.marca),
+        id: targetId,
+        referenceImages,
         updatedBy: currentUser(),
         updatedAt: new Date().toISOString(),
-        createdAt: styleInput.createdAt || new Date().toISOString()
+        createdAt: styleInput.createdAt || existingStyle?.createdAt || new Date().toISOString()
       });
 
       await setDoc(doc(db, BRAND_STYLES_COLLECTION_NAME, clean.id), clean, { merge: true });
@@ -3367,7 +3628,15 @@ Instrucciones:
         return;
       }
 
-      await saveBrandStyle({ marca, estiloVisual, ambientacionSugerida, evitar });
+      const existingStyle = getBrandStyle(editingStyleId) || getBrandStyle(brandStyleDocumentId(marca));
+      const referenceInput = document.getElementById("styleReferenceImages");
+      const referenceImages = await uploadBrandStyleReferenceImages(
+        marca,
+        referenceInput?.files || [],
+        existingStyle?.referenceImages || []
+      );
+
+      await saveBrandStyle({ marca, estiloVisual, ambientacionSugerida, evitar, referenceImages });
       clearBrandStyleForm();
       document.getElementById("brandStyleForm")?.classList.add("hidden");
       await refresh();
@@ -3381,6 +3650,15 @@ Instrucciones:
 
       const ok = confirm(`¿Eliminar la estética de ${style.marca}?\n\nLos SKUs de esa marca volverán a usar la estética general retail.`);
       if (!ok) return;
+
+      for (const image of normalizeStyleReferenceImages(style.referenceImages || [])) {
+        if (!image.path) continue;
+        try {
+          await deleteObject(storageRef(storage, image.path));
+        } catch (error) {
+          console.warn("No se pudo borrar referencia de Storage:", image.path, error);
+        }
+      }
 
       await deleteDoc(doc(db, BRAND_STYLES_COLLECTION_NAME, id));
       if (editingStyleId === id) clearBrandStyleForm();
@@ -3396,25 +3674,28 @@ Instrucciones:
           Marca: "ROBERTA ALLEN",
           "Estilo visual": "decoración de hogar cálida, natural, elegante, tonos tierra y sensación artesanal premium",
           "Ambientación sugerida": "comedor, cocina, repisa decorativa, mesa de centro o ambiente home decor con luz cálida",
-          Evitar: "fondos deportivos, escenarios futuristas, colores neón, exceso de elementos o estética plástica"
+          Evitar: "fondos deportivos, escenarios futuristas, colores neón, exceso de elementos o estética plástica",
+          "Referencias visuales": "Opcional: pegar URLs separadas por coma o subir imágenes manualmente desde la página"
         },
         {
           Marca: "BASEMENT",
           "Estilo visual": "moderno, casual, urbano, funcional y cercano",
           "Ambientación sugerida": "departamento contemporáneo, dormitorio, living o terraza moderna con composición limpia",
-          Evitar: "ambientaciones demasiado lujosas, oscuras, recargadas o con elementos que resten protagonismo"
+          Evitar: "ambientaciones demasiado lujosas, oscuras, recargadas o con elementos que resten protagonismo",
+          "Referencias visuales": ""
         }
       ];
 
       const worksheet = XLSX.utils.json_to_sheet(rows, {
-        header: ["Marca", "Estilo visual", "Ambientación sugerida", "Evitar"]
+        header: ["Marca", "Estilo visual", "Ambientación sugerida", "Evitar", "Referencias visuales"]
       });
 
       worksheet["!cols"] = [
         { wch: 24 },
         { wch: 58 },
         { wch: 64 },
-        { wch: 58 }
+        { wch: 58 },
+        { wch: 70 }
       ];
 
       const workbook = XLSX.utils.book_new();
@@ -3448,6 +3729,7 @@ Instrucciones:
         const estiloCol = findColumn(first, ["estilovisual", "estilo", "visual"]);
         const ambientacionCol = findColumn(first, ["ambientacionsugerida", "ambientacion", "ambiente"]);
         const evitarCol = findColumn(first, ["evitar", "nohacer", "restricciones"]);
+        const referenciasCol = findColumn(first, ["referenciasvisuales", "referencias", "imagenesreferencia", "imagenes"]);
 
         const missing = [];
         if (!marcaCol) missing.push("Marca");
@@ -3475,13 +3757,15 @@ Instrucciones:
           const estiloVisual = String(row[estiloCol] || "").trim();
           const ambientacionSugerida = String(row[ambientacionCol] || "").trim();
           const evitar = String(row[evitarCol] || "").trim();
+          const referenciasTexto = referenciasCol ? String(row[referenciasCol] || "").trim() : "";
+          const referenceImages = referenciasTexto ? normalizeStyleReferenceImages(referenciasTexto) : undefined;
 
           if (!marca || !estiloVisual || !ambientacionSugerida || !evitar) {
             incomplete++;
             return;
           }
 
-          writes.push(saveBrandStyle({ marca, estiloVisual, ambientacionSugerida, evitar }));
+          writes.push(saveBrandStyle({ marca, estiloVisual, ambientacionSugerida, evitar, referenceImages }));
           saved++;
         });
 
@@ -3501,7 +3785,28 @@ Instrucciones:
       }
     }
 
-    function renderBrandStylesView() {
+    async function getBrandStyleTableReferencesHtml(style) {
+      const images = normalizeStyleReferenceImages(style.referenceImages || []);
+
+      if (!images.length) {
+        return `<div class="master-muted">Sin referencias</div>`;
+      }
+
+      const items = [];
+      for (const image of images.slice(0, MAX_STYLE_REFERENCE_IMAGES)) {
+        const url = await getStyleReferenceImageUrl(image);
+        items.push(`
+          <div class="style-reference-item">
+            ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Referencia")}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline(image.name || "Referencia estética")}')">` : `<div class="empty" style="padding:18px;">No disponible</div>`}
+            <div class="style-reference-name">${escapeHtml(image.name || "Referencia")}</div>
+          </div>
+        `);
+      }
+
+      return `<div class="style-reference-grid">${items.join("")}</div>`;
+    }
+
+    async function renderBrandStylesView() {
       const count = document.getElementById("brandStylesCount");
       const table = document.getElementById("brandStylesTable");
       if (!count || !table) return;
@@ -3518,6 +3823,32 @@ Instrucciones:
         return;
       }
 
+      const rows = await Promise.all(brandStyles.map(async style => {
+        const referencesHtml = await getBrandStyleTableReferencesHtml(style);
+
+        return `
+          <tr>
+            <td><div class="master-sku">${escapeHtml(style.marca)}</div></td>
+            <td>${escapeHtml(style.estiloVisual)}</td>
+            <td>${escapeHtml(style.ambientacionSugerida)}</td>
+            <td>${escapeHtml(style.evitar)}</td>
+            <td>${referencesHtml}</td>
+            <td>
+              <div class="master-muted">
+                ${escapeHtml(formatDate(style.updatedAt) || "Sin fecha")}<br>
+                ${style.updatedBy ? `Por ${escapeHtml(style.updatedBy)}` : ""}
+              </div>
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-soft btn-small" onclick="editBrandStyle('${encodeForInline(style.id)}')">Editar</button>
+                <button class="btn btn-red btn-small" onclick="deleteBrandStyle('${encodeForInline(style.id)}')">Eliminar</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }));
+
       table.innerHTML = `
         <div class="master-table-wrap">
           <table class="master-table">
@@ -3527,32 +3858,12 @@ Instrucciones:
                 <th>Estilo visual</th>
                 <th>Ambientación sugerida</th>
                 <th>Evitar</th>
+                <th>Referencias</th>
                 <th>Actualización</th>
                 <th>Acciones</th>
               </tr>
             </thead>
-            <tbody>
-              ${brandStyles.map(style => `
-                <tr>
-                  <td><div class="master-sku">${escapeHtml(style.marca)}</div></td>
-                  <td>${escapeHtml(style.estiloVisual)}</td>
-                  <td>${escapeHtml(style.ambientacionSugerida)}</td>
-                  <td>${escapeHtml(style.evitar)}</td>
-                  <td>
-                    <div class="master-muted">
-                      ${escapeHtml(formatDate(style.updatedAt) || "Sin fecha")}<br>
-                      ${style.updatedBy ? `Por ${escapeHtml(style.updatedBy)}` : ""}
-                    </div>
-                  </td>
-                  <td>
-                    <div class="actions">
-                      <button class="btn btn-soft btn-small" onclick="editBrandStyle('${encodeForInline(style.id)}')">Editar</button>
-                      <button class="btn btn-red btn-small" onclick="deleteBrandStyle('${encodeForInline(style.id)}')">Eliminar</button>
-                    </div>
-                  </td>
-                </tr>
-              `).join("")}
-            </tbody>
+            <tbody>${rows.join("")}</tbody>
           </table>
         </div>
       `;
@@ -3568,7 +3879,7 @@ Instrucciones:
       await renderUploadDetail();
       await renderReviewList();
       renderMasterTable();
-      renderBrandStylesView();
+      await renderBrandStylesView();
     }
 
     async function renderEmptyBase() {
@@ -3578,7 +3889,7 @@ Instrucciones:
       await renderWorkDetail();
       renderUploadList();
       renderMasterTable();
-      renderBrandStylesView();
+      await renderBrandStylesView();
       document.getElementById("reviewList").innerHTML = `<div class="empty">No hay SKUs pendientes de revisión.</div>`;
     }
 
@@ -3736,7 +4047,7 @@ Instrucciones:
         <strong>${count ? `${count} SKU(s) seleccionados` : "Selección múltiple de SKU"}</strong>
         <button class="btn btn-soft btn-small" onclick="toggleSelectAllWorkVisible()">Seleccionar / limpiar visibles</button>
         <button class="btn btn-primary btn-small" onclick="openBulkWorkEdit()" ${count ? "" : "disabled"}>Editar seleccionados</button>
-        <button class="btn btn-red btn-small" onclick="adminRemoveSelectedSkusFromWork()" ${count ? "" : "disabled"}>Quitar seleccionados</button>
+        <button class="btn btn-red btn-small" onclick="adminRemoveSelectedSkusFromWork()" ${count ? "" : "disabled"}>Eliminar seleccionados</button>
       `;
     }
 
@@ -3871,30 +4182,25 @@ Instrucciones:
       });
 
       if (!ids.length) {
-        alert("Selecciona al menos un SKU para quitar.");
+        alert("Selecciona al menos un SKU para eliminar.");
         return;
       }
 
-      const confirmed = confirm(`Se quitarán ${ids.length} SKU(s) de SKU a trabajar y quedarán en el Master como Descartado.\n\n¿Continuar?`);
+      const confirmed = confirm(`Se eliminarán permanentemente ${ids.length} SKU(s) de SKU a trabajar y del Master.
+
+Esto permitirá volver a cargarlos más adelante.
+
+¿Continuar?`);
       if (!confirmed) return;
 
-      const reason = prompt("Motivo opcional para dejar registro:", "") || "";
-      const now = new Date().toISOString();
-      let updated = 0;
+      let deleted = 0;
 
       for (const id of ids) {
         const record = getRecord(id);
         if (!record || !canAdminRemoveFromWork(record)) continue;
 
-        record.estado = STATUS.DESCARTADO;
-        record.removedFromWork = true;
-        record.removedBy = currentUser();
-        record.removedAt = now;
-        record.removedReason = reason.trim();
-        record.updatedAt = now;
-
-        await saveRecord(record);
-        updated++;
+        await permanentlyDeleteRecord(record);
+        deleted++;
       }
 
       ids.forEach(id => selectedWorkBulkIds.delete(id));
@@ -3902,7 +4208,7 @@ Instrucciones:
       if (ids.includes(selectedUploadId)) selectedUploadId = "";
       closeBulkWorkEdit();
       await refresh();
-      toast(`${updated} SKU(s) quitados de SKU a trabajar.`);
+      toast(`${deleted} SKU(s) eliminados permanentemente.`);
     }
 
 
@@ -4005,7 +4311,7 @@ Instrucciones:
           <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
           ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">Generar por IA (2 opciones)</button>` : ""}
           <button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${skuEditOpen ? "Cerrar edición" : "Editar detalles"}</button>
-          ${canAdminRemoveFromWork(record) ? `<button class="btn btn-red" onclick="adminRemoveSkuFromWork('${record.id}')">Quitar de SKU a trabajar</button>` : ""}
+          ${canAdminRemoveFromWork(record) ? `<button class="btn btn-red" onclick="adminRemoveSkuFromWork('${record.id}')">Eliminar de SKU a trabajar</button>` : ""}
         </div>
       `;
     }
@@ -4053,6 +4359,12 @@ Instrucciones:
           const url = await getDownloadURL(storageRef(storage, image.path));
           const reason = image.rejectionReason || record.motivoRechazo || "Sin motivo registrado";
 
+          const deleteButton = isAdmin() ? `
+            <div class="preview-actions">
+              <button class="btn btn-red btn-small" type="button" onclick="adminDeleteRecordImage('${encodeForInline(record.id)}', '${encodeForInline(imageIdentifier(image))}')">Quitar foto</button>
+            </div>
+          ` : "";
+
           items.push(`
             <div class="preview-item">
               <img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Imagen rechazada")}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline((image.name || record.sku) + " · Rechazada")}' )">
@@ -4061,6 +4373,7 @@ Instrucciones:
                 <span class="image-review-state rejected">Rechazada</span>
                 <div class="master-muted">${escapeHtml(reason)}</div>
               </div>
+              ${deleteButton}
             </div>
           `);
         } catch (error) {
@@ -4079,6 +4392,13 @@ Instrucciones:
     }
 
 
+    async function permanentlyDeleteRecord(record) {
+      if (!record || !record.id) return;
+
+      await deleteImagesFromStorage(record);
+      await deleteDoc(doc(db, COLLECTION_NAME, record.id));
+    }
+
     function canAdminRemoveFromWork(record) {
       return isAdmin() && record && [STATUS.PENDIENTE, STATUS.TRABAJO, STATUS.RECHAZADO].includes(record.estado);
     }
@@ -4090,32 +4410,24 @@ Instrucciones:
       if (!record) return;
 
       if (!canAdminRemoveFromWork(record)) {
-        alert("Este SKU no está disponible para quitar desde SKU a trabajar.");
+        alert("Este SKU no está disponible para eliminar desde SKU a trabajar.");
         return;
       }
 
-      const confirmed = confirm(`Se quitará el SKU ${record.sku} de SKU a trabajar y quedará en el Master como Descartado.
+      const confirmed = confirm(`Se eliminará permanentemente el SKU ${record.sku} de SKU a trabajar y del Master.
+
+Esto permitirá volver a cargarlo más adelante.
 
 ¿Continuar?`);
       if (!confirmed) return;
 
-      const reason = prompt("Motivo opcional para dejar registro:", "") || "";
-      const now = new Date().toISOString();
-
-      record.estado = STATUS.DESCARTADO;
-      record.removedFromWork = true;
-      record.removedBy = currentUser();
-      record.removedAt = now;
-      record.removedReason = reason.trim();
-      record.updatedAt = now;
-
-      await saveRecord(record);
+      await permanentlyDeleteRecord(record);
 
       if (selectedWorkId === id) selectedWorkId = "";
       if (selectedUploadId === id) selectedUploadId = "";
 
       await refresh();
-      toast(`SKU ${record.sku} quitado de SKU a trabajar.`);
+      toast(`SKU ${record.sku} eliminado permanentemente.`);
     }
 
     async function takeWork(id) {
@@ -4181,11 +4493,29 @@ Instrucciones:
 
       const record = getRecord(selectedUploadId);
       const available = getUploadCandidateRecords().length;
-      const selectedTitle = record ? `Subida para ${escapeHtml(record.sku)}` : "Subida inteligente por nombre de archivo";
+      const selectedTitle = record ? `Subida para ${escapeHtml(record.sku)}` : "Selecciona un SKU tomado";
       const selectedText = record
-        ? `Puedes subir una o varias imágenes de este SKU. El nombre debe venir como SKU_VISTA para poder asociarlo correctamente.`
-        : `Arrastra varias imágenes y el sistema buscará nombres exactos con formato SKU_VISTA para enviarlas a revisión.`;
-      const preview = record ? await getPreviewHtml(record) : `<span>Selecciona un SKU de la lista para ver su última subida, o carga imágenes masivas directamente aquí.</span>`;
+        ? `Puedes subir imágenes solo de este SKU. El nombre debe venir exactamente como ${escapeHtml(record.sku)}_005, ${escapeHtml(record.sku)}_006 o ${escapeHtml(record.sku)}_007.`
+        : `Elige primero un SKU tomado de la lista. No se permite subir imágenes sin SKU seleccionado.`;
+      const preview = record ? await getPreviewHtml(record) : `<span>Selecciona un SKU tomado para habilitar la carga.</span>`;
+
+      const uploadBox = record ? `
+        <label
+          class="upload-box"
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDropUpload(event, '${record.id}')"
+        >
+          <strong>Arrastra imágenes de este SKU aquí</strong>
+          <small>${selectedText}</small>
+          <input class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleGeneratedUpload('${record.id}', this.files); this.value = '';" />
+        </label>
+      ` : `
+        <div class="upload-box" style="cursor:not-allowed; opacity:.55;" onclick="alert('Selecciona primero un SKU tomado de la lista.');">
+          <strong>Subida bloqueada</strong>
+          <small>${selectedText}</small>
+        </div>
+      `;
 
       el.innerHTML = `
         <div class="detail-header">
@@ -4196,22 +4526,12 @@ Instrucciones:
           ${record ? `<div>${statusPill(record.estado)}</div>` : ""}
         </div>
 
-        <label
-          class="upload-box"
-          ondragover="handleDragOver(event)"
-          ondragleave="handleDragLeave(event)"
-          ondrop="handleDropUpload(event, '${record ? record.id : ""}')"
-        >
-          <strong>Arrastra una o varias imágenes aquí</strong>
-          <small>${selectedText}</small>
-          <input class="input-file" type="file" accept=".jpg,.jpeg,.png,.webp,.avif" multiple onchange="handleGeneratedUpload('${record ? record.id : ""}', this.files); this.value = '';" />
-        </label>
+        ${uploadBox}
 
         <div class="upload-helper">
-          <strong>Cómo debe venir el nombre:</strong> el archivo debe venir solo como <strong>SKU_VISTA</strong>, por ejemplo
-          <strong>123456789_005.jpg</strong>, <strong>123456789_006.png</strong> o <strong>123456789_07.webp</strong>.
-          No debe incluir palabras adicionales antes ni después del SKU. Formatos permitidos: JPG, JPEG, PNG, WEBP y AVIF. Máximo 10 MB por imagen y máximo 3 imágenes por SKU.
-          Si un SKU fue rechazado, se mantiene asignado al mismo editor. Al subir una corrección, la entrega anterior se reemplaza y pasa nuevamente a revisión.
+          <strong>Nombre obligatorio:</strong> solo se aceptan imágenes con el formato exacto <strong>SKU_005</strong>, <strong>SKU_006</strong> o <strong>SKU_007</strong>.
+          Ejemplos válidos: <strong>123456789_005.jpg</strong>, <strong>123456789_006.png</strong>, <strong>123456789_007.webp</strong>.
+          No se aceptan vistas distintas, nombres con texto extra ni subidas sin SKU seleccionado. Formatos permitidos: JPG, JPEG, PNG, WEBP y AVIF. Máximo 10 MB por imagen y máximo 3 imágenes por SKU.
         </div>
 
         <div class="preview">${preview}</div>
@@ -4277,14 +4597,26 @@ Instrucciones:
       return ALLOWED_UPLOAD_MIME_TYPES.includes(type);
     }
 
-    function fileNameMatchesSku(fileName, sku) {
+    function parseUploadFileName(fileName) {
       const base = normalizeText(fileNameWithoutExtension(fileName));
-      const normalizedSku = normalizeText(sku);
-      if (!base || !normalizedSku) return false;
+      const match = base.match(/^(.+)_([0-9]{3})$/);
+      if (!match) return null;
+      return {
+        sku: match[1],
+        view: match[2]
+      };
+    }
 
-      const escapedSku = escapeRegExp(normalizedSku);
-      const pattern = new RegExp(`^${escapedSku}_[0-9]{1,3}$`);
-      return pattern.test(base);
+    function isAllowedUploadView(fileName) {
+      const parsed = parseUploadFileName(fileName);
+      return Boolean(parsed && ALLOWED_UPLOAD_VIEWS.includes(parsed.view));
+    }
+
+    function fileNameMatchesSku(fileName, sku) {
+      const parsed = parseUploadFileName(fileName);
+      const normalizedSku = normalizeText(sku);
+      if (!parsed || !normalizedSku) return false;
+      return parsed.sku === normalizedSku && ALLOWED_UPLOAD_VIEWS.includes(parsed.view);
     }
 
     function findRecordForUploadedFile(file, candidates) {
@@ -4307,6 +4639,19 @@ Instrucciones:
       if (!requireTabAccess("upload")) return;
       if (!files || !files.length) return;
 
+      if (!id) {
+        alert("Selecciona primero un SKU tomado de la lista. No se permite subir imágenes sin SKU seleccionado.");
+        return;
+      }
+
+      const selectedRecord = getRecord(id);
+      const availableIds = new Set(getUploadCandidateRecords().map(record => record.id));
+
+      if (!selectedRecord || !availableIds.has(selectedRecord.id)) {
+        alert("Este SKU no está tomado por tu usuario o no está disponible para subir imágenes.");
+        return;
+      }
+
       if (uploadProcessing) {
         alert("Ya hay una subida en proceso. Espera a que termine antes de subir más imágenes.");
         return;
@@ -4320,6 +4665,7 @@ Instrucciones:
           batchLimit: [],
           format: [],
           size: [],
+          view: [],
           unmatched: [],
           status: [],
           ownership: [],
@@ -4346,6 +4692,11 @@ Instrucciones:
             return;
           }
 
+          if (!isAllowedUploadView(file.name)) {
+            errors.view.push(`${file.name} · usa solo ${selectedRecord.sku}_005, ${selectedRecord.sku}_006 o ${selectedRecord.sku}_007`);
+            return;
+          }
+
           validFiles.push(file);
         });
 
@@ -4353,12 +4704,13 @@ Instrucciones:
           alert(
             "No se pudo procesar ninguna imagen."
             + uploadErrorLine("Formato inválido", errors.format)
+            + uploadErrorLine("Vista inválida", errors.view)
             + uploadErrorLine("Sobre 10 MB", errors.size)
           );
           return;
         }
 
-        const candidates = getUploadCandidateRecords();
+        const candidates = [selectedRecord];
         const groups = new Map();
 
         validFiles.forEach(file => {
@@ -4373,7 +4725,7 @@ Instrucciones:
             } else if (possibleRecord && !isAdmin() && possibleRecord.editor !== currentUser()) {
               errors.ownership.push(`${file.name} · asignado a ${possibleRecord.editor || "otro usuario"}`);
             } else {
-              errors.unmatched.push(`${file.name} · no coincide con ningún SKU tomado/rechazado disponible`);
+              errors.unmatched.push(`${file.name} · no coincide con el SKU seleccionado ${selectedRecord.sku}`);
             }
 
             return;
@@ -4418,6 +4770,7 @@ Instrucciones:
             + uploadErrorLine("Usuario no asignado", errors.ownership)
             + uploadErrorLine("Sin match", errors.unmatched)
             + uploadErrorLine("Formato inválido", errors.format)
+            + uploadErrorLine("Vista inválida", errors.view)
             + uploadErrorLine("Sobre 10 MB", errors.size)
           );
           return;
@@ -4496,6 +4849,7 @@ Instrucciones:
             + uploadErrorLine("Usuario no asignado", errors.ownership)
             + uploadErrorLine("Sin match", errors.unmatched)
             + uploadErrorLine("Formato inválido", errors.format)
+            + uploadErrorLine("Vista inválida", errors.view)
             + uploadErrorLine("Sobre 10 MB", errors.size)
           );
         } else {
@@ -4738,6 +5092,7 @@ Instrucciones:
                 <span>
                   <strong>${escapeHtml(image.name || `Imagen ${index + 1}`)}</strong>
                   <small>Si queda marcada, se aprobará y al descargar quedará desde ${escapeHtml(record.sku)}_005.jpg. Las no marcadas se descartarán.</small>
+                  ${isAdmin() ? `<div class="preview-actions"><button class="btn btn-red btn-small" type="button" onclick="event.preventDefault(); event.stopPropagation(); adminDeleteRecordImage('${encodeForInline(record.id)}', '${encodeForInline(imageIdentifier(image, index))}')">Quitar foto</button></div>` : ""}
                 </span>
               </label>
             `).join("")}
@@ -6025,6 +6380,71 @@ Instrucciones:
       }
     }
 
+    function findRecordImageByIdentifier(record, imageId) {
+      const targetId = String(imageId || "");
+      const images = getRecordImages(record);
+      return images.find((image, index) => imageIdentifier(image, index) === targetId) || null;
+    }
+
+    async function adminDeleteRecordImage(recordIdRaw, imageIdRaw) {
+      if (!requireAdmin()) return;
+
+      const recordId = decodeURIComponent(String(recordIdRaw || ""));
+      const imageId = decodeURIComponent(String(imageIdRaw || ""));
+      const record = getRecord(recordId);
+
+      if (!record) {
+        alert("No se encontró el SKU asociado a esta imagen.");
+        return;
+      }
+
+      const image = findRecordImageByIdentifier(record, imageId);
+      if (!image) {
+        alert("No se encontró la imagen en este SKU.");
+        return;
+      }
+
+      const ok = confirm(`¿Quitar esta foto del SKU ${record.sku}?
+
+${image.name || "Imagen sin nombre"}`);
+      if (!ok) return;
+
+      if (image.path) {
+        try {
+          await deleteObject(storageRef(storage, image.path));
+        } catch (error) {
+          console.warn("No se pudo borrar la imagen desde Storage:", image.path, error);
+        }
+      }
+
+      record.generatedImages = (record.generatedImages || []).filter((item, index) => {
+        return imageIdentifier(item, index) !== imageId;
+      });
+
+      record.uploadEvents = (record.uploadEvents || []).filter(event => {
+        if (image.id && event.id === image.id) return false;
+        if (image.name && event.name === image.name && event.sku === record.sku) return false;
+        return true;
+      });
+
+      const remainingImages = getRecordImages(record);
+      record.generatedImageName = remainingImages.map(img => img.name).join(", ");
+      record.lastImageNames = record.generatedImageName || record.lastImageNames || "";
+
+      if (!remainingImages.length && [STATUS.REVISION, STATUS.RECHAZADO].includes(record.estado)) {
+        record.estado = record.editor ? STATUS.TRABAJO : STATUS.PENDIENTE;
+        record.motivoRechazo = "";
+        record.revisor = "";
+        record.reviewedAt = "";
+        record.uploadedAt = "";
+      }
+
+      record.updatedAt = new Date().toISOString();
+      await saveRecord(record);
+      await refresh();
+      toast(`Foto quitada de ${record.sku}.`);
+    }
+
     async function deleteImagesFromStorage(record) {
       const images = getRecordImages(record);
 
@@ -6200,20 +6620,33 @@ Instrucciones:
             const url = await getDownloadURL(storageRef(storage, image.path));
 
             const state = isImageRejected(image) ? `<span class="image-review-state rejected">Rechazada</span>` : `<span class="image-review-state">En revisión</span>`;
+            const deleteButton = isAdmin() ? `
+              <div class="preview-actions">
+                <button class="btn btn-red btn-small" type="button" onclick="adminDeleteRecordImage('${encodeForInline(record.id)}', '${encodeForInline(imageIdentifier(image))}')">Quitar foto</button>
+              </div>
+            ` : "";
 
             items.push(`
               <div class="preview-item">
-                <img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Imagen generada")}">
+                <img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Imagen generada")}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline(image.name || record.sku + " · imagen subida")}')">
                 <div class="preview-name">${escapeHtml(image.name || "")}${state}</div>
+                ${deleteButton}
               </div>
             `);
           } catch (error) {
             console.warn("No se pudo cargar preview desde Storage:", image.path, error);
 
+            const deleteButton = isAdmin() ? `
+              <div class="preview-actions">
+                <button class="btn btn-red btn-small" type="button" onclick="adminDeleteRecordImage('${encodeForInline(record.id)}', '${encodeForInline(imageIdentifier(image))}')">Quitar foto</button>
+              </div>
+            ` : "";
+
             items.push(`
               <div class="preview-item">
                 <div class="empty" style="padding:20px;">Imagen no disponible</div>
                 <div class="preview-name">${escapeHtml(image.name || "")}</div>
+                ${deleteButton}
               </div>
             `);
           }
@@ -6276,8 +6709,22 @@ Instrucciones:
       });
     }
 
+    async function collectBrandStyleReferenceUrls(record) {
+      const style = getBrandAesthetic(record?.marca);
+      const images = normalizeStyleReferenceImages(style.referenceImages || []);
+      const urls = [];
+
+      for (const image of images) {
+        const url = await getStyleReferenceImageUrl(image);
+        if (url) urls.push(url);
+      }
+
+      return urls;
+    }
+
     async function callAiGeneration(record, optionNumber, iaPin) {
       const pos1Url = buildFalabellaViewUrl(record.sku, "1");
+      const styleReferenceUrls = await collectBrandStyleReferenceUrls(record);
 
       const response = await fetch(IA_BACKEND_URL, {
         method: "POST",
@@ -6290,7 +6737,8 @@ Instrucciones:
           sku: record.sku,
           prompt: buildPrompt(record),
           pos1Url,
-          optionNumber
+          optionNumber,
+          styleReferenceUrls
         })
       });
 
@@ -6424,6 +6872,7 @@ Instrucciones:
       saveBrandStyleFromForm,
       editBrandStyle,
       deleteBrandStyle,
+      deleteBrandStyleReferenceImage,
       downloadBrandStylesTemplate,
       handleBrandStylesExcelUpload,
       selectWork,
@@ -6434,6 +6883,7 @@ Instrucciones:
       handleDragLeave,
       handleDropUpload,
       handleGeneratedUpload,
+      adminDeleteRecordImage,
       approveOne,
       rejectOne,
       approveSelected,
