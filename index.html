@@ -1122,6 +1122,21 @@
       font-weight: 900;
     }
 
+    .metric-card-ok {
+      border-color: rgba(34, 197, 94, .28);
+      background: rgba(34, 197, 94, .10);
+    }
+
+    .metric-card-pending {
+      border-color: rgba(250, 204, 21, .35);
+      background: rgba(250, 204, 21, .12);
+    }
+
+    .metric-card-rejected {
+      border-color: rgba(239, 68, 68, .28);
+      background: rgba(239, 68, 68, .10);
+    }
+
     .metrics-title {
       display: flex;
       justify-content: space-between;
@@ -1164,6 +1179,10 @@
       background: var(--greenFalabella);
       border-radius: 999px;
     }
+
+    .bar-fill-ok { background: var(--greenFalabella); }
+    .bar-fill-pending { background: var(--yellow); }
+    .bar-fill-rejected { background: var(--red); }
 
     .metrics-table {
       width: 100%;
@@ -1408,6 +1427,7 @@
     }
 
     .legend-approved { background: var(--greenFalabella); }
+    .legend-pending { background: var(--yellow); }
     .legend-rejected { background: var(--red); }
 
     .bar-counts {
@@ -1775,7 +1795,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.13</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.14</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2061,7 +2081,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.13";
+    const APP_VERSION = "V1.1.14";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2157,7 +2177,7 @@ const firebaseConfig = {
     let uploadProcessing = false;
     let reviewProcessing = false;
     let aiGenerating = false;
-    let metricsPeriod = "all";
+    let metricsPeriod = "week";
     let masterSort = { field: "prioridad", direction: "asc" };
     let masterSearchQuery = "";
     let masterSuperiorFilter = "all";
@@ -5393,7 +5413,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
           <button class="btn btn-soft btn-small ${masterSuperiorFilter === "pending" ? "btn-filter-active" : ""}" onclick="setMasterSuperiorFilter('pending')">Pendientes</button>
           <button class="btn btn-soft btn-small ${masterSuperiorFilter === "ok" ? "btn-filter-active" : ""}" onclick="setMasterSuperiorFilter('ok')">OK</button>
           <button class="btn btn-soft btn-small" onclick="clearMasterFilters()">Limpiar</button>
-          <div class="master-muted" style="grid-column:1 / -1;">Mostrando ${escapeHtml(countText)} SKU(s). Los descartados no se muestran.</div>
+          <div class="master-muted" style="grid-column:1 / -1;">${escapeHtml(countText)} SKU(s)</div>
         </div>
       `;
     }
@@ -5998,7 +6018,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
     }
 
     function setMetricsPeriod(period) {
-      metricsPeriod = period || "all";
+      metricsPeriod = ["week", "month", "all"].includes(period) ? period : "week";
       renderMetricsPanel();
     }
 
@@ -6006,12 +6026,6 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const now = new Date();
       const end = new Date(now);
       end.setHours(23, 59, 59, 999);
-
-      if (period === "day") {
-        const start = new Date(now);
-        start.setHours(0, 0, 0, 0);
-        return { start, end, label: `Día ${formatDate(start.toISOString()).split(" ")[0]}` };
-      }
 
       if (period === "month") {
         const start = startOfMonth(now);
@@ -6048,15 +6062,17 @@ Después podrás volver a cargar este SKU desde Excel o manual.
     }
 
     function calculateSimpleMetrics(period = metricsPeriod) {
+      const safePeriod = ["week", "month", "all"].includes(period) ? period : "week";
       const masterRows = recordsWithSuperiorStatus();
-      const workEvents = collectWorkEvents().filter(event => metricEventMatchesPeriod(event, period));
-      const reviewEvents = collectReviewMetricEvents().filter(event => metricEventMatchesPeriod(event, period));
+      const workEvents = collectWorkEvents().filter(event => metricEventMatchesPeriod(event, safePeriod));
+      const reviewEvents = collectReviewMetricEvents().filter(event => metricEventMatchesPeriod(event, safePeriod));
 
       const ok = masterRows.filter(record => record.estadoSuperior === "OK").length;
       const pending = masterRows.filter(record => record.estadoSuperior === "Pendiente").length;
       const rejectedCurrent = masterRows.filter(record => record.estado === STATUS.RECHAZADO).length;
       const rejectionEvents = reviewEvents.filter(event => event.result === "rejected").length;
       const rejectionTotal = masterRows.reduce((acc, record) => acc + getRejectionCount(record), 0);
+      const rejectionsToShow = safePeriod === "all" ? rejectionTotal : rejectionEvents;
       const total = masterRows.length;
       const okRate = total ? Math.round((ok / total) * 1000) / 10 : 0;
       const pendingRate = total ? Math.round((pending / total) * 1000) / 10 : 0;
@@ -6064,34 +6080,37 @@ Después podrás volver a cargar este SKU desde Excel o manual.
       const summaryRows = [
         { Estado: "OK", Cantidad: ok, Porcentaje: `${okRate}%` },
         { Estado: "Pendiente", Cantidad: pending, Porcentaje: `${pendingRate}%` },
-        { Estado: "Rechazos", Cantidad: rejectionTotal, Porcentaje: "" }
+        { Estado: "Rechazos", Cantidad: rejectionsToShow, Porcentaje: "" }
       ];
 
       return {
         summaryRows,
-        totals: { total, ok, pending, rejectedCurrent, rejectionEvents, rejectionTotal, okRate, pendingRate },
+        totals: { total, ok, pending, rejectedCurrent, rejectionEvents, rejectionTotal, rejectionsToShow, okRate, pendingRate },
         workEvents,
         reviewEvents,
         masterRows,
-        ...metricPeriodRange(period)
+        ...metricPeriodRange(safePeriod)
       };
     }
 
     function renderSuperiorMetricBars(totals) {
-      const max = Math.max(totals.ok, totals.pending, totals.rejectionTotal, 1);
+      const max = Math.max(totals.ok, totals.pending, totals.rejectionsToShow, 1);
       const rows = [
-        { label: "OK", value: totals.ok },
-        { label: "Pendiente", value: totals.pending },
-        { label: "Rechazos", value: totals.rejectionTotal }
+        { label: "OK", value: totals.ok, className: "bar-fill-ok", legendClass: "legend-approved" },
+        { label: "Pendiente", value: totals.pending, className: "bar-fill-pending", legendClass: "legend-pending" },
+        { label: "Rechazos", value: totals.rejectionsToShow, className: "bar-fill-rejected", legendClass: "legend-rejected" }
       ];
 
       return `
+        <div class="metric-legend">
+          ${rows.map(row => `<span><i class="legend-dot ${row.legendClass}"></i>${escapeHtml(row.label)}</span>`).join("")}
+        </div>
         <div class="bar-list">
           ${rows.map(row => `
             <div class="bar-row">
               <div>${escapeHtml(row.label)}</div>
               <div class="bar-track">
-                <div class="bar-fill" style="width:${Math.round((row.value / max) * 100)}%"></div>
+                <div class="bar-fill ${row.className}" style="width:${Math.round((row.value / max) * 100)}%"></div>
               </div>
               <div class="bar-counts">${row.value}</div>
             </div>
@@ -6113,26 +6132,28 @@ Después podrás volver a cargar este SKU desde Excel o manual.
 
       if (panel.classList.contains("hidden")) return;
 
-      const { totals, label } = calculateSimpleMetrics(metricsPeriod);
+      const { totals } = calculateSimpleMetrics(metricsPeriod);
 
       panel.innerHTML = `
         <div class="metrics-title">
-          <div>
-            <h3>Métricas</h3>
-            <div class="master-muted">OK = aprobado/descargado. Pendiente = pendiente, en trabajo, en revisión o rechazado.</div>
-          </div>
+          <h3>Métricas</h3>
           <div class="panel-title-actions">
-            <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Descargar métricas Excel</button>
-            <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar métricas</button>
+            <div class="metrics-filter">
+              <select onchange="setMetricsPeriod(this.value)">
+                <option value="week" ${metricsPeriod === "week" ? "selected" : ""}>Semana</option>
+                <option value="month" ${metricsPeriod === "month" ? "selected" : ""}>Mes</option>
+                <option value="all" ${metricsPeriod === "all" ? "selected" : ""}>Histórico</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-small" onclick="downloadMetricsExcel()">Excel</button>
+            <button class="btn btn-soft btn-small" onclick="toggleMetricsPanel()">Cerrar</button>
           </div>
         </div>
 
-        <div class="master-muted" style="margin-bottom:12px;">Los rechazos son acumulados históricos por SKU.</div>
-
         <div class="metrics-grid">
-          <div class="metric-card"><small>OK</small><strong>${totals.ok}</strong></div>
-          <div class="metric-card"><small>Pendientes</small><strong>${totals.pending}</strong></div>
-          <div class="metric-card"><small>Rechazos</small><strong>${totals.rejectionTotal}</strong></div>
+          <div class="metric-card metric-card-ok"><small>OK</small><strong>${totals.ok}</strong></div>
+          <div class="metric-card metric-card-pending"><small>Pendientes</small><strong>${totals.pending}</strong></div>
+          <div class="metric-card metric-card-rejected"><small>Rechazos</small><strong>${totals.rejectionsToShow}</strong></div>
         </div>
 
         ${renderSuperiorMetricBars(totals)}
@@ -6146,11 +6167,10 @@ Después podrás volver a cargar este SKU desde Excel o manual.
               </tr>
             </thead>
             <tbody>
-              <tr><td><strong>Total visible</strong></td><td>${totals.total}</td></tr>
+              <tr><td><strong>Total</strong></td><td>${totals.total}</td></tr>
               <tr><td><strong>OK</strong></td><td>${totals.ok}</td></tr>
               <tr><td><strong>Pendiente</strong></td><td>${totals.pending}</td></tr>
-              <tr><td><strong>Rechazados actuales</strong></td><td>${totals.rejectedCurrent}</td></tr>
-              <tr><td><strong>Rechazos históricos</strong></td><td>${totals.rejectionTotal}</td></tr>
+              <tr><td><strong>Rechazos</strong></td><td>${totals.rejectionsToShow}</td></tr>
             </tbody>
           </table>
         </div>
@@ -6194,16 +6214,27 @@ Después podrás volver a cargar este SKU desde Excel o manual.
     function downloadMetricsExcel() {
       if (!requireAdmin()) return;
 
-      const currentData = calculateSimpleMetrics("all");
-      const summaryRows = [
-        { Dato: "Total visible", Cantidad: currentData.totals.total },
-        { Dato: "OK", Cantidad: currentData.totals.ok },
-        { Dato: "Pendiente", Cantidad: currentData.totals.pending },
-        { Dato: "Rechazados actuales", Cantidad: currentData.totals.rejectedCurrent },
-        { Dato: "Rechazos históricos", Cantidad: currentData.totals.rejectionTotal },
-        { Dato: "% OK", Cantidad: `${currentData.totals.okRate}%` },
-        { Dato: "% Pendiente", Cantidad: `${currentData.totals.pendingRate}%` }
+      const periods = [
+        { key: "week", label: "Semana" },
+        { key: "month", label: "Mes" },
+        { key: "all", label: "Histórico" }
       ];
+
+      const summaryRows = [];
+
+      periods.forEach(period => {
+        const data = calculateSimpleMetrics(period.key);
+        summaryRows.push({
+          Periodo: period.label,
+          Rango: data.label,
+          "Total visible": data.totals.total,
+          OK: data.totals.ok,
+          Pendiente: data.totals.pending,
+          Rechazos: data.totals.rejectionsToShow,
+          "% OK": `${data.totals.okRate}%`,
+          "% Pendiente": `${data.totals.pendingRate}%`
+        });
+      });
 
       const workRows = collectWorkEvents().map(event => ({
         _fechaOrden: event.fecha,
@@ -6241,17 +6272,7 @@ Después podrás volver a cargar este SKU desde Excel o manual.
         .sort((a, b) => new Date(b._fechaOrden || 0) - new Date(a._fechaOrden || 0))
         .map(({ _fechaOrden, ...row }) => row);
 
-      const infoRows = [
-        { Campo: "Archivo", Valor: `Métricas Flujo IA ${APP_VERSION}` },
-        { Campo: "Estado superior OK", Valor: "Aprobado o Descargado" },
-        { Campo: "Estado superior Pendiente", Valor: "Pendiente, En trabajo, En revisión o Rechazado" },
-        { Campo: "Descartados", Valor: "No incluidos en Master, métricas ni Excel" },
-        { Campo: "Rechazos", Valor: "Acumulado histórico por SKU" },
-        { Campo: "Generado", Valor: formatDate(new Date().toISOString()) }
-      ];
-
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(infoRows)), "Info");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(summaryRows)), "Resumen");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(masterMetricsRows())), "Master completo");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(emptySafeRows(detailRows, "Sin eventos registrados")), "Eventos");
