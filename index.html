@@ -658,6 +658,37 @@
       line-height: 1.25;
     }
 
+    .style-reference-download-block {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .style-reference-download-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .style-reference-download-head strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .style-reference-download-head small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
     .upload-helper {
       margin-top: 12px;
       background: rgba(59, 130, 246, .08);
@@ -1715,7 +1746,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.11</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.12</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2001,7 +2032,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.11";
+    const APP_VERSION = "V1.1.12";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -4228,6 +4259,9 @@ Esto permitirá volver a cargarlos más adelante.
         ? "Sin match de marca. Se usa estética general retail."
         : `${brandAesthetic.marca} · ${brandAesthetic.estiloVisual || "Estética registrada"}`;
       const currentPrompt = buildPrompt(record);
+      const styleReferenceImages = getBrandStyleReferenceImages(record);
+      const styleReferencesHtml = await getWorkStyleReferencesHtml(record);
+      const downloadImagesLabel = styleReferenceImages.length ? "Descargar imágenes + referencias" : "Descargar imágenes";
       const rejectedPreviewHtml = record.estado === STATUS.RECHAZADO && getRecordImages(record).length
         ? await getRejectedImagesWorkPreviewHtml(record)
         : "";
@@ -4301,6 +4335,7 @@ Esto permitirá volver a cargarlos más adelante.
           </div>
         </div>
 
+        ${styleReferencesHtml}
         ${rejectedPreviewHtml}
         ${skuEditPanel}
 
@@ -4308,7 +4343,7 @@ Esto permitirá volver a cargarlos más adelante.
 
         <div class="actions">
           ${record.estado !== STATUS.TRABAJO ? `<button class="btn btn-blue" onclick="takeWork('${record.id}')">${record.estado === STATUS.RECHAZADO ? "Retomar rechazo" : "Tomar SKU"}</button>` : ""}
-          <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">Descargar imágenes</button>
+          <button class="btn btn-primary" onclick="downloadSkuImages('${record.id}')">${downloadImagesLabel}</button>
           ${canGenerateAiForRecord(record) ? `<button class="btn btn-primary" onclick="generateAiOptions('${record.id}')">Generar por IA (2 opciones)</button>` : ""}
           <button class="btn btn-soft" onclick="toggleAdminSkuEdit('${record.id}')">${skuEditOpen ? "Cerrar edición" : "Editar detalles"}</button>
           ${canAdminRemoveFromWork(record) ? `<button class="btn btn-red" onclick="adminRemoveSkuFromWork('${record.id}')">Eliminar de SKU a trabajar</button>` : ""}
@@ -6634,10 +6669,15 @@ ${image.name || "Imagen sin nombre"}`);
           return;
         }
 
+        const referenceResult = await addStyleReferencesToZip(folder, record);
+
         const blob = await zip.generateAsync({ type: "blob" });
         saveAs(blob, `${safeFileName(record.sku)}.zip`);
 
-        toast(`Descarga lista: ${downloaded} imagen(es).`);
+        const referenceText = referenceResult.total
+          ? ` + ${referenceResult.downloaded}/${referenceResult.total} referencia(s)`
+          : "";
+        toast(`Descarga lista: ${downloaded} imagen(es)${referenceText}.`);
       } catch (error) {
         console.error(error);
         alert("No se pudo descargar las imágenes. Revisa que el SKU exista o que el CDN permita la descarga.");
@@ -6784,9 +6824,45 @@ ${image.name || "Imagen sin nombre"}`);
       });
     }
 
-    async function collectBrandStyleReferenceUrls(record) {
+    function getBrandStyleReferenceImages(record) {
       const style = getBrandAesthetic(record?.marca);
-      const images = normalizeStyleReferenceImages(style.referenceImages || []);
+      if (!style || style.isFallback) return [];
+      return normalizeStyleReferenceImages(style.referenceImages || []);
+    }
+
+    async function getWorkStyleReferencesHtml(record) {
+      const images = getBrandStyleReferenceImages(record);
+      if (!images.length) return "";
+
+      const style = getBrandAesthetic(record?.marca);
+      const items = [];
+
+      for (const image of images.slice(0, MAX_STYLE_REFERENCE_IMAGES)) {
+        const url = await getStyleReferenceImageUrl(image);
+        items.push(`
+          <div class="style-reference-item">
+            ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(image.name || "Referencia")}" onclick="openImageModal('${encodeForInline(url)}', '${encodeForInline(image.name || "Referencia estética")}')">` : `<div class="empty" style="padding:18px;">No disponible</div>`}
+            <div class="style-reference-name">${escapeHtml(image.name || "Referencia")}</div>
+          </div>
+        `);
+      }
+
+      return `
+        <div class="style-reference-download-block">
+          <div class="style-reference-download-head">
+            <div>
+              <strong>Referencias para Nano Banana</strong>
+              <small>${escapeHtml(style.marca || record?.marca || "Marca")} · se incluirán en Descargar imágenes.</small>
+            </div>
+            <span class="pill status">${images.length} referencia(s)</span>
+          </div>
+          <div class="style-reference-grid">${items.join("")}</div>
+        </div>
+      `;
+    }
+
+    async function collectBrandStyleReferenceUrls(record) {
+      const images = getBrandStyleReferenceImages(record);
       const urls = [];
 
       for (const image of images) {
@@ -6795,6 +6871,75 @@ ${image.name || "Imagen sin nombre"}`);
       }
 
       return urls;
+    }
+
+    function imageExtensionFromType(type) {
+      const clean = String(type || "").toLowerCase();
+      if (clean.includes("png")) return "png";
+      if (clean.includes("webp")) return "webp";
+      if (clean.includes("avif")) return "avif";
+      if (clean.includes("jpeg") || clean.includes("jpg")) return "jpg";
+      return "jpg";
+    }
+
+    function ensureImageExtension(fileName, type = "") {
+      const clean = safeFileName(fileName || "referencia");
+      if (/\.(jpg|jpeg|png|webp|avif)$/i.test(clean)) return clean;
+      return `${clean}.${imageExtensionFromType(type)}`;
+    }
+
+    function styleReferenceFileName(image, index, brandName) {
+      const baseName = image?.name || `${brandName || "referencia"}_${String(index + 1).padStart(2, "0")}`;
+      return `${String(index + 1).padStart(2, "0")}_${ensureImageExtension(baseName, image?.type || "")}`;
+    }
+
+    async function getStyleReferenceBlob(image) {
+      if (!image) return null;
+
+      if (image.path) {
+        return await getBlob(storageRef(storage, image.path));
+      }
+
+      if (image.url) {
+        const response = await fetch(image.url, { cache: "no-store" });
+        if (!response.ok) return null;
+        return await response.blob();
+      }
+
+      return null;
+    }
+
+    async function addStyleReferencesToZip(folder, record) {
+      const images = getBrandStyleReferenceImages(record);
+      if (!images.length) return { downloaded: 0, total: 0 };
+
+      const style = getBrandAesthetic(record?.marca);
+      const referencesFolder = folder.folder(`referencias_${safeFileName(style.marca || record?.marca || "marca")}`);
+      const links = [];
+      let downloaded = 0;
+
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+
+        try {
+          const url = await getStyleReferenceImageUrl(image);
+          if (url) links.push(`${image.name || `Referencia ${i + 1}`}: ${url}`);
+
+          const blob = await getStyleReferenceBlob(image);
+          if (!blob) continue;
+
+          referencesFolder.file(styleReferenceFileName(image, i, style.marca || record?.marca), blob);
+          downloaded++;
+        } catch (error) {
+          console.warn("No se pudo agregar referencia de estética al ZIP:", image, error);
+        }
+      }
+
+      if (links.length) {
+        referencesFolder.file("links_referencias.txt", links.join("\n"));
+      }
+
+      return { downloaded, total: images.length };
     }
 
     async function callAiGeneration(record, optionNumber, iaPin) {
