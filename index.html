@@ -1715,7 +1715,7 @@
       <div class="brand">
         <div class="logo-box">IA</div>
         <div>
-          <h1>Flujo IA <span class="version">V1.1.10</span></h1>
+          <h1>Flujo IA <span class="version">V1.1.11</span></h1>
           <small>Falabella Chile</small>
         </div>
       </div>
@@ -2001,13 +2001,13 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.10";
+    const APP_VERSION = "V1.1.11";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
     const BRAND_STYLES_COLLECTION_NAME = "flujo_ia_esteticas_marca";
     const STORAGE_ROOT = "flujo-ia/imagenes";
-    const STYLE_REFERENCE_STORAGE_ROOT = "flujo-ia/esteticas";
+    const STYLE_REFERENCE_STORAGE_ROOT = `${STORAGE_ROOT}/esteticas`;
 
     const IA_BACKEND_URL = "https://flujo-ia-backend.vercel.app/api/generate-image";
     const IA_OPTIONS_COUNT = 2;
