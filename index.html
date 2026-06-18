@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Flujo IA</title>
+  <title>Proyecto WIDA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="./falabella.png" type="image/png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%238FCA00'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Arial,sans-serif' font-size='34' font-weight='900' fill='white'%3EW%3C/text%3E%3C/svg%3E" type="image/svg+xml" />
 
   <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,900" rel="stylesheet" />
 
@@ -95,6 +95,71 @@
       display: grid;
       place-items: center;
       box-shadow: 0 8px 20px rgba(143, 202, 0, .25);
+    }
+
+    .brand-logo-img {
+      height: 56px;
+      width: auto;
+      max-width: min(360px, 48vw);
+      display: block;
+      object-fit: contain;
+    }
+
+    .wida-brand {
+      gap: 12px;
+    }
+
+    .wida-lockup {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .wida-logo-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--greenFalabella), #c9f000);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px rgba(143, 202, 0, .22);
+      flex: 0 0 auto;
+    }
+
+    .wida-logo-icon span {
+      color: #fff;
+      font-size: 31px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -1px;
+      transform: translateY(-1px);
+    }
+
+    .wida-logo-text {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+
+    .wida-logo-title {
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .3px;
+    }
+
+    .wida-logo-subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .wida-brand .version {
+      margin-left: 2px;
+      align-self: center;
     }
 
     .brand h1 {
@@ -1772,6 +1837,9 @@
 
     @media (max-width: 1000px) {
       .topbar-inner { align-items: flex-start; flex-direction: column; }
+      .wida-logo-icon { width: 46px; height: 46px; border-radius: 14px; }
+      .wida-logo-icon span { font-size: 28px; }
+      .wida-logo-title { font-size: 20px; }
       .top-right { width: 100%; justify-content: space-between; }
       .layout, .review-card, .compare-pair { grid-template-columns: 1fr; }
       .review-side { position: static; }
@@ -1792,12 +1860,15 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">
-        <div class="logo-box">IA</div>
-        <div>
-          <h1>Flujo IA <span class="version">V1.1.14</span></h1>
-          <small>Falabella Chile</small>
+      <div class="brand wida-brand">
+        <div class="wida-lockup">
+          <div class="wida-logo-icon" aria-hidden="true"><span>W</span></div>
+          <div class="wida-logo-text">
+            <div class="wida-logo-title">WIDA</div>
+            <div class="wida-logo-subtitle">Proyecto WIDA</div>
+          </div>
         </div>
+        <span class="version">V1.1.16</span>
       </div>
 
       <div class="top-right">
@@ -2081,7 +2152,7 @@
       deleteObject
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-    const APP_VERSION = "V1.1.14";
+    const APP_VERSION = "V1.1.16";
     const BUSINESS_UNIT = "falabella";
     const PAIS = "CL";
     const COLLECTION_NAME = "flujo_ia_skus";
@@ -2116,7 +2187,7 @@ const firebaseConfig = {
     const READ_NOTIFICATIONS_KEY = "flujo_ia_read_notifications";
     const ALERTED_NOTIFICATIONS_KEY = "flujo_ia_alerted_notifications";
     const NOTIFICATION_SOUND_KEY = "flujo_ia_notification_sound";
-    const BASE_DOCUMENT_TITLE = "Flujo IA";
+    const BASE_DOCUMENT_TITLE = "Proyecto WIDA";
     const ADMIN_UNLOCK_KEY = "flujo_ia_admin_unlocked_user";
     const ADMIN_PIN = "0000";
     const MAX_UPLOAD_FILES_PER_BATCH = 100;
@@ -2943,7 +3014,7 @@ Instrucciones:
       if (role === ROLES.REVISOR) {
         return {
           title: "Hay imágenes para revisar",
-          text: `${review} SKU(s) pendiente(s) de revisión en Flujo IA.`
+          text: `${review} SKU(s) pendiente(s) de revisión en Proyecto WIDA.`
         };
       }
 
@@ -2952,7 +3023,7 @@ Instrucciones:
       if (rejected) parts.push(`${rejected} rechazado(s)`);
 
       return {
-        title: "Tienes novedades en Flujo IA",
+        title: "Tienes novedades en Proyecto WIDA",
         text: parts.length ? `SKU(s): ${parts.join(" · ")}.` : `${items.length} novedad(es) pendiente(s).`
       };
     }
