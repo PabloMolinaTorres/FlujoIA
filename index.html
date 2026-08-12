@@ -3398,7 +3398,12 @@ Instrucciones:
 
     function skuAlreadyExists(sku) {
       const key = normalizeText(sku);
-      return records.some(record => normalizeText(record.sku) === key);
+      // Los registros descartados se conservan como historial, pero el
+      // Master no los muestra. No deben impedir que el mismo SKU vuelva a
+      // ingresar como un trabajo nuevo.
+      return records.some(record =>
+        !isDiscardedRecord(record) && normalizeText(record.sku) === key
+      );
     }
 
     function toggleManualPanel() {
