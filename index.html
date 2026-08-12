@@ -480,6 +480,33 @@
       overflow-y: auto;
     }
 
+    .work-search {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(148, 163, 184, .05);
+    }
+
+    .work-search input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--card);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+      font-weight: 750;
+      outline: none;
+    }
+
+    .work-search input:focus {
+      border-color: var(--greenFalabella);
+      box-shadow: 0 0 0 3px rgba(143, 202, 0, .12);
+    }
+
     .sku-item {
       padding: 13px 16px;
       border-bottom: 1px solid var(--border);
@@ -1986,6 +2013,17 @@
             <span>Pendientes / Rechazados</span>
             <span id="workCount" class="pill status"></span>
           </div>
+          <div class="work-search">
+            <input
+              id="workSearchInput"
+              type="search"
+              placeholder="Buscar SKU o pegar varios SKU"
+              autocomplete="off"
+              oninput="applyWorkSearch(this.value)"
+              onkeydown="handleWorkSearchKey(event)"
+            />
+            <button class="btn btn-soft btn-small" type="button" onclick="clearWorkSearch()">Limpiar</button>
+          </div>
           <div id="workList" class="sku-list"></div>
         </div>
 
@@ -2251,6 +2289,7 @@ const firebaseConfig = {
     let metricsPeriod = "week";
     let masterSort = { field: "prioridad", direction: "asc" };
     let masterSearchQuery = "";
+    let workSearchQuery = "";
     let masterSuperiorFilter = "all";
     const selectedWorkBulkIds = new Set();
     const pos1Cache = {};
@@ -4135,15 +4174,60 @@ ${image.name || "Imagen sin nombre"}`);
       });
     }
 
-    function renderWorkList() {
+    function parseWorkSearchTokens(value = workSearchQuery) {
+      return [...new Set(
+        String(value || "")
+          .split(/[\s,;]+/)
+          .map(normalizeText)
+          .filter(Boolean)
+      )];
+    }
+
+    function getFilteredWorkRecords() {
       const list = getVisibleWorkRecords();
-      const visibleIds = new Set(list.map(record => record.id));
+      const tokens = parseWorkSearchTokens();
+      if (!tokens.length) return list;
+
+      return list.filter(record => {
+        const sku = normalizeText(record.sku);
+        return tokens.some(token => sku === token || sku.includes(token));
+      });
+    }
+
+    function applyWorkSearch(value) {
+      workSearchQuery = String(value ?? document.getElementById("workSearchInput")?.value ?? "").trim();
+      renderWorkList();
+    }
+
+    function handleWorkSearchKey(event) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      clearWorkSearch();
+    }
+
+    function clearWorkSearch() {
+      workSearchQuery = "";
+      const input = document.getElementById("workSearchInput");
+      if (input) {
+        input.value = "";
+        input.focus();
+      }
+      renderWorkList();
+    }
+
+    function renderWorkList() {
+      const allVisible = getVisibleWorkRecords();
+      const list = getFilteredWorkRecords();
+      const visibleIds = new Set(allVisible.map(record => record.id));
       [...selectedWorkBulkIds].forEach(id => {
         if (!visibleIds.has(id)) selectedWorkBulkIds.delete(id);
       });
 
       const countEl = document.getElementById("workCount");
-      if (countEl) countEl.textContent = list.length;
+      if (countEl) countEl.textContent = workSearchQuery ? `${list.length} / ${allVisible.length}` : list.length;
+
+      const searchInput = document.getElementById("workSearchInput");
+      if (searchInput && searchInput.value !== workSearchQuery) searchInput.value = workSearchQuery;
 
       renderWorkBulkBar(list);
 
@@ -4151,7 +4235,9 @@ ${image.name || "Imagen sin nombre"}`);
       if (!el) return;
 
       if (!list.length) {
-        el.innerHTML = `<div class="empty">No hay SKUs para trabajar.</div>`;
+        el.innerHTML = workSearchQuery
+          ? `<div class="empty">No se encontraron SKU para esta búsqueda.</div>`
+          : `<div class="empty">No hay SKUs para trabajar.</div>`;
         return;
       }
 
@@ -7304,6 +7390,9 @@ ${image.name || "Imagen sin nombre"}`);
       handleMasterSearchKey,
       setMasterSuperiorFilter,
       clearMasterFilters,
+      applyWorkSearch,
+      handleWorkSearchKey,
+      clearWorkSearch,
       openImageModal,
       closeImageModal,
       generateAiOptions
